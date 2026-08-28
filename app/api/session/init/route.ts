@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createSession } from '@/lib/session-store'
-import { generateNegotiationResponse } from '@/lib/gemini'
+import { generateNegotiationResponse } from '@/lib/groq'
 import {
   getInitialTier,
   getDiscountPercent,
   getOfferedPrice,
   getTotalPrice,
   buildSystemPrompt,
-  validateGeminiResponse,
+  validateAIResponse,
   MINIMUM_ORDER_FOR_DISCOUNT,
 } from '@/lib/negotiation-state'
 
@@ -100,7 +100,7 @@ Sapa customer dengan hangat, sebutkan jumlah pesanan, dan langsung tawarkan harg
       }
 
       const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)')
-      initialMessage = validateGeminiResponse(greeting, session)
+      initialMessage = validateAIResponse(greeting, session)
     } catch {
       const unitPrice = basePrice + logoPrice + textPrice
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {

@@ -10,12 +10,12 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
-    "@google/generative-ai": "^0.24.1",
     "@upstash/redis": "^1.38.0",
     "@vercel/analytics": "1.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "fabric": "^7.4.0",
+    "groq-sdk": "^1.4.0",
     "lucide-react": "^1.16.0",
     "midtrans-client": "^1.4.3",
     "next": "16.2.6",

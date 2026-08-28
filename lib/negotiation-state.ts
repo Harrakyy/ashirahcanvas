@@ -180,7 +180,7 @@ PESAN CUSTOMER: "${session.messages[session.messages.length - 1]?.content || ''}
 Berikan respons yang natural, ramah, dan profesional. Selalu sertakan harga spesifik dalam respons.`
 }
 
-export function validateGeminiResponse(
+export function validateAIResponse(
   response: string,
   session: NegotiationSession
 ): string {

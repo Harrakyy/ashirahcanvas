@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getSession, updateSession } from '@/lib/session-store'
-import { generateNegotiationResponse } from '@/lib/gemini'
+import { generateNegotiationResponse } from '@/lib/groq'
 import {
   getDiscountPercent,
   getOfferedPrice,
   getTotalPrice,
   classifyUserIntent,
   buildSystemPrompt,
-  validateGeminiResponse,
+  validateAIResponse,
   getNextTier,
   MINIMUM_ORDER_FOR_DISCOUNT,
 } from '@/lib/negotiation-state'
@@ -60,9 +60,9 @@ export async function POST(request: Request) {
 
       try {
         const response = await generateNegotiationResponse(acceptSystemPrompt, message)
-        aiMessage = validateGeminiResponse(response, session)
+        aiMessage = validateAIResponse(response, session)
       } catch (error) {
-        console.error('[AshirahBot] ACCEPT branch Gemini FAILED:', error)
+        console.error('[AshirahBot] ACCEPT branch Groq FAILED:', error)
         aiMessage = `Mantap kak! ✅ Terima kasih sudah deal ya. Untuk ${session.quantity} pcs, harga finalnya Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%), total Rp ${total.toLocaleString('id-ID')}. Pesanan akan segera kami proses! 🎉`
       }
 
@@ -135,9 +135,9 @@ Jelaskan dengan sopan bahwa ini sudah harga terbaik yang bisa diberikan. Tunjukk
 
       try {
         const response = await generateNegotiationResponse(rejectSystemPrompt, message)
-        aiMessage = validateGeminiResponse(response, session)
+        aiMessage = validateAIResponse(response, session)
       } catch (error) {
-        console.error('[AshirahBot] REJECT branch Gemini FAILED:', error)
+        console.error('[AshirahBot] REJECT branch Groq FAILED:', error)
         if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
           aiMessage = `Maaf kak, untuk ${session.quantity} pcs, harganya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
         } else if (session.currentTier < 3) {
@@ -172,9 +172,9 @@ Jelaskan dengan sopan bahwa ini sudah harga terbaik yang bisa diberikan. Tunjukk
 
     try {
       const response = await generateNegotiationResponse(systemPrompt, message)
-      aiMessage = validateGeminiResponse(response, session)
+      aiMessage = validateAIResponse(response, session)
     } catch (error) {
-      console.error('[AshirahBot] UNKNOWN branch Gemini FAILED:', error)
+      console.error('[AshirahBot] UNKNOWN branch Groq FAILED:', error)
       const offeredPrice = getOfferedPrice(session)
       const discount = getDiscountPercent(session.currentTier)
       aiMessage = `Hmm, saya kurang penuh maksud kaknya nih 😅 Bisa diperjelas lagi? Untuk pesanan ${session.quantity} pcs, saya tawarkan harga Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Ada yang bisa saya bantu? 😊`
