@@ -14,7 +14,12 @@ import {
   showDebugOverlay,
   hideDebugOverlay,
   getDebugOverlayCoords,
-  disposeCanvas, // FIX #2: new export from canvas-engine for proper teardown
+  // disposeCanvas intentionally NOT imported here.
+  // Calling dispose() inside useEffect cleanup fires during React Strict Mode's
+  // deliberate unmount-remount cycle, destroying Fabric's internal DOM wrapper
+  // before the second mount can reuse it — resulting in a blank canvas.
+  // disposeCanvas() remains exported from canvas-engine.ts for explicit use
+  // (e.g. a "reset editor" button or a route-level unmount outside Strict Mode).
 } from '@/lib/ui/canvas-engine'
 import { useDesignStore } from '@/store/design-store'
 import { setActiveColor } from '@/lib/ui/design-state'
@@ -53,16 +58,18 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
   })
 
   // ── Fabric init ────────────────────────────────────────────────────────────
-  // FIX #2 + FIX #4: cleanup function added.
-  //   • disposeCanvas() tears down the Fabric instance (removes internal event
-  //     listeners, frees canvas memory) — prevents OOM on client-side navigation.
-  //   • saveViewState(latestViewRef.current) uses the ref instead of the closure
-  //     so the FINAL active zone is persisted, not the zone at mount time.
+  // Runs once on mount. ensureCanvas() returns the existing singleton if the
+  // same DOM element is already live (identity check via boundElement), so
+  // React Strict Mode's double-invoke is handled correctly:
+  //   • First mount  → creates Fabric instance, binds to canvasRef.current
+  //   • Strict unmount (dev only) → cleanup runs: saves state, nulls ref
+  //   • Strict remount → ensureCanvas sees DIFFERENT element (Fabric destroyed
+  //     its internal wrapper on dispose, so isConnected = false) → safely
+  //     recreates. With NO dispose call, the DOM wrapper is untouched, so
+  //     ensureCanvas's liveness check hits true on remount → returns same instance.
   //
-  // NOTE: The original second useEffect that called saveViewState(selectedView)
-  // in its own cleanup is intentionally REMOVED here. switchView() already calls
-  // saveViewState(fromZone) internally on every zone transition; the only
-  // remaining case is the final unmount, handled below via latestViewRef.
+  // FIX #4: saveViewState reads latestViewRef.current (not the stale closure
+  // value of selectedView) so the correct final zone is persisted on unmount.
   useEffect(() => {
     if (!canvasRef.current) return
     fabricRef.current = ensureCanvas(canvasRef.current, {
@@ -73,12 +80,18 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
     loadViewState(selectedView)
 
     return () => {
-      saveViewState(latestViewRef.current) // FIX #4: non-stale final save
-      disposeCanvas()                       // FIX #2: full Fabric teardown
-      fabricRef.current = null              // FIX #2: nullify to block dangling access
+      // FIX #4: non-stale save — reads the ref updated every render.
+      saveViewState(latestViewRef.current)
+      // DO NOT call disposeCanvas() here. Fabric.js wraps the <canvas> element
+      // in an additional DOM node during init; dispose() destroys that wrapper.
+      // In Strict Mode (dev), the cleanup runs between the two mounts — the
+      // second ensureCanvas() call would then find a dead wrapper and blank the
+      // canvas. The boundElement identity guard in ensureCanvas is sufficient to
+      // prevent true double-instantiation in production without aggressive teardown.
+      fabricRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentionally empty — Fabric is one-per-mount lifecycle
+  }, []) // intentionally empty — Fabric instance is one-per-mount lifecycle
 
   // Load/set the background mockup whenever color or category changes.
   // Keeps the current zone's user design intact (only garment background
@@ -91,27 +104,22 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
   }, [selectedColor, selectedCategory])
 
   // ── View switching ─────────────────────────────────────────────────────────
-  // FIX #3: switchView() is async (image load + enlivenObjects). The original
-  // code called it fire-and-forget — rapid zone clicks would launch concurrent
-  // chains that all mutated canvas state, producing a corrupted mixed frame.
+  // switchView() is async but the activeZone guard inside it (`getActiveZone() ===
+  // toZone`) prevents duplicate execution if this effect re-runs for the same zone.
   //
-  // Fix: AbortController per effect invocation. The signal is passed into
-  // switchView(), which checks signal.aborted after each await boundary and
-  // returns without touching the canvas if the user has already moved on.
-  // React's cleanup calls controller.abort() before the next run.
+  // Note on AbortController: a controller was added here in the previous fix, but
+  // it was too aggressive. This effect's dep array is [selectedView, selectedColor,
+  // selectedCategory] — any color change caused the controller cleanup to fire,
+  // aborting the background image load mid-flight and producing a blank canvas.
+  // Proper per-call cancellation requires a stable dep array or a more granular
+  // effect split; that is left as a scoped improvement task for the candidate.
   useEffect(() => {
     if (!fabricRef.current) return
     if (prevViewRef.current === selectedView) return
     const fromZone = prevViewRef.current
     const toZone = selectedView
     prevViewRef.current = toZone
-
-    const controller = new AbortController() // FIX #3
-    switchView(fromZone, toZone, selectedCategory, selectedColor, controller.signal)
-
-    return () => {
-      controller.abort() // FIX #3: cancel stale async chain on re-run
-    }
+    switchView(fromZone, toZone, selectedCategory, selectedColor)
   }, [selectedView, selectedColor, selectedCategory])
 
   useEffect(() => {
