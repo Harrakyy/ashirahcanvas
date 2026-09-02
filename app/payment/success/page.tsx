@@ -2,12 +2,28 @@
 
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Suspense } from 'react'
-import { CheckCircle2 } from 'lucide-react'
+import { Suspense, useEffect, useState } from 'react'
+import { CheckCircle2, Eye } from 'lucide-react'
+import VendorBlueprintModal, {
+  BLUEPRINT_STORAGE_KEY,
+} from '@/components/vendor-blueprint-modal'
 
 function SuccessContent() {
   const searchParams = useSearchParams()
   const orderId = searchParams.get('order_id')
+  const [blueprintOpen, setBlueprintOpen] = useState(false)
+
+  // Take-Home Test seam: buka modal blueprint otomatis saat checkout selesai
+  // — hanya jika snapshotAllZones() sudah menyimpan data ke sessionStorage.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(BLUEPRINT_STORAGE_KEY)) {
+        setBlueprintOpen(true)
+      }
+    } catch {
+      // sessionStorage tidak tersedia — lewati auto-open
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -37,20 +53,26 @@ function SuccessContent() {
         )}
 
         <div className="space-y-3 pt-2">
+          <button
+            onClick={() => setBlueprintOpen(true)}
+            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-blue-950 hover:bg-blue-900 text-white font-medium rounded-lg text-sm transition"
+          >
+            <Eye className="w-4 h-4" />
+            Lihat Blueprint
+          </button>
           <Link
             href="/"
-            className="block w-full py-2.5 px-4 bg-blue-950 hover:bg-blue-900 text-white font-medium rounded-lg text-sm transition text-center"
+            className="block w-full py-2.5 px-4 border-2 border-gray-200 hover:bg-gray-50 text-gray-600 font-medium rounded-lg text-sm transition text-center"
           >
             Kembali ke Beranda
           </Link>
-          <Link
-            href="/editor"
-            className="block w-full py-2.5 px-4 border-2 border-blue-950 text-blue-950 hover:bg-blue-50 font-medium rounded-lg text-sm transition text-center"
-          >
-            Buat Desain Baru
-          </Link>
         </div>
       </div>
+
+      <VendorBlueprintModal
+        open={blueprintOpen}
+        onOpenChange={setBlueprintOpen}
+      />
     </div>
   )
 }

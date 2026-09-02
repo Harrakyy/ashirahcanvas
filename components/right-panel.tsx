@@ -27,6 +27,8 @@ interface RightPanelProps {
   agreedDiscount?: number | null
   onPayment?: () => void
   isProcessingPayment?: boolean
+  onSimulateCheckout?: () => void
+  isSimulatingCheckout?: boolean
 }
 
 export default function RightPanel({
@@ -51,6 +53,8 @@ export default function RightPanel({
   agreedDiscount = null,
   onPayment,
   isProcessingPayment = false,
+  onSimulateCheckout,
+  isSimulatingCheckout = false,
 }: RightPanelProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -84,6 +88,8 @@ export default function RightPanel({
           totalQty={totalQty}
           total={total}
           onCustomNow={() => onModeChange('negotiate')}
+          onSimulateCheckout={onSimulateCheckout}
+          isSimulatingCheckout={isSimulatingCheckout}
         />
       ) : (
         <NegotiateMode

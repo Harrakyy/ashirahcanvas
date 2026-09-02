@@ -30,7 +30,7 @@ pembayaran (Midtrans) dalam satu monolit modular Next.js.
 |---|---|---|
 | `lib/server/` | Backend | Logic yang **wajib** jalan di server (tidak boleh diimport frontend). File aktual: `pricing.ts` (kalkulasi harga & sumber kebenaran harga), `negotiation-state.ts` (tier diskon, intent user, buildSystemPrompt, `validateAIResponse`), `session-store.ts` (interface + persist `NegotiationSession`, backend Redis), `groq.ts` (gateway model AI + retry), `ai-vision.ts` (**STUB** — lihat catatan di bawah). |
 | `lib/config/` | Bersama (butuh koordinasi) | Konstanta/kontrak bersama yang boleh diakses frontend **dan** backend. File aktual: `products.ts` (katalog produk + `basePrice` per produk), `zones.ts` (daftar zona & labelnya), `print-areas.ts` (area print per zona + `getPrintArea`), `mockup-paths.ts` (path/lokasi gambar mockup via `getMockupUrl`). |
-| `lib/ui/` | Frontend | State & helper canvas sisi client. File aktual: `canvas-engine.ts` (singleton Fabric.js: load mockup, print-area clip, layer, view state), `design-state.ts` (kanal state terpusat: active zone/view states/color — di luar React, karena engine canvas bersifat imperatif), `utils.ts` (`cn` helper untuk komponen UI). |
+| `lib/ui/` | Frontend | State & helper canvas sisi client. File aktual: `canvas-engine.ts` (singleton Fabric.js: load mockup, print-area clip, layer, view state), `design-state.ts` (kanal state terpusat: active zone/view states/color — di luar React, karena engine canvas bersifat imperatif), `utils.ts` (`cn` helper untuk komponen UI). **`blueprint-extractor.ts`** (snapshot 4 zona + ekstraksi asset) adalah **deliverable take-home test — belum ada, dibuat oleh kandidat** (lihat `TAKE_HOME_TEST.md`). |
 | `types/` | Bersama (kontrak) | Tipe request/response API & tipe domain. File aktual: `pricing.ts` (`PriceQuote`), `api.ts` (`SessionInitResponse`, `SessionStatusResponse`, `NegotiateResponse`), `chat.ts` (`ChatMessage`), `design.ts` (`CanvasZone`, `ViewStateRecord`, `DesignState`), `print-area.ts` (`PrintArea`), `vision.ts` (kontrak AI Vision, lihat catatan di bawah), `midtrans-client.d.ts` (deklarasi jenis untuk package midtrans). |
 | `components/` | Frontend | Komponen React: `canvas.tsx` (kanvas + view switcher), `left-panel.tsx` (+ sub-panel di `left-panel/`), `right-panel.tsx` (+ `right-panel/negotiate-mode.tsx`, `review-mode.tsx`), `header.tsx`, `product-switcher-dialog.tsx`, panel mobile (`mobile-*`), dan primitives generik di `components/ui/` (`button`, `dialog`, `tabs`, `badge`, `coming-soon`). |
 | `app/api/` | Backend | Route handler (server). Route aktual: `quote` (GET harga), `session/init` (POST buat sesi negosiasi + quote), `session/status` (status sesi/polling), `negotiate` (POST pesan negosiasi), `payment/create` (POST buat pembayaran Midtrans). |
@@ -140,6 +140,7 @@ menjembatani keduanya.
 | Buat/poll sesi negosiasi | `app/api/session/init/route.ts`, `app/api/session/status/route.ts` |
 | Alur chat negosiasi | `app/api/negotiate/route.ts`, `components/right-panel/negotiate-mode.tsx` |
 | Pembayaran Midtrans | `app/api/payment/create/route.ts`, `app/payment/success/page.tsx` |
+| Modal & trigger blueprint vendor | `components/vendor-blueprint-modal.tsx`, `app/payment/success/page.tsx`, tombol "Simulasi Checkout" di `components/right-panel/review-mode.tsx` |
 
 ---
 
@@ -161,6 +162,12 @@ selesai. Jangan "bereskan" tanpa instruksi eksplisit.
    nonaktif (desktop: disabled + chip "Segera Hadir"; mobile: disabled).
 4. **AI Vision (`lib/server/ai-vision.ts`) status STUB** — belum terhubung ke provider, belum
    dipakai di alur harga (lihat Section B catatan).
+5. **Vendor Blueprint Extractor = scaffolding take-home test, bukan fitur jadi.** Jalur yang SUDAH
+   disiapkan: tombol **"Simulasi Checkout (Blueprint Demo)"** di panel review (bypass negosiasi AI
+   + Midtrans, zero env vars) dan cangkang modal `components/vendor-blueprint-modal.tsx` yang
+   auto-open di `/payment/success` saat `sessionStorage["vendor_blueprint"]` berisi snapshot.
+   Logika ekstraksi (`lib/ui/blueprint-extractor.ts`) dan isi modal adalah **deliverable kandidat** —
+   jangan diimplementasikan oleh internal team (lihat `TAKE_HOME_TEST.md`).
 
 ---
 

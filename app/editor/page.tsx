@@ -337,6 +337,29 @@ export default function EditorPage() {
     }
   }
 
+  // ── Take-Home Test seam: "Simulasi Checkout" ─────────────────────────
+  // Jalan pintas dev-only untuk mencapai /payment/success TANPA negosiasi AI
+  // maupun Midtrans (zero env vars), supaya fitur Vendor Blueprint bisa
+  // dirancang & diuji lebih dulu. Alur pembayaran asli (handlePayment) tetap
+  // utuh di atas; jangan ragu untuk menggabungkan keduanya saat menerapkan
+  // snapshotAllZones() di callback onSuccess snap.pay.
+  const handleSimulateCheckout = () => {
+    if (isProcessingPayment) return
+    setIsProcessingPayment(true)
+    try {
+      // TODO (Take-Home Test Task 1 + 2): panggil snapshotAllZones() dari
+      // lib/ui/blueprint-extractor.ts SEBELUM navigasi, lalu simpan hasilnya
+      // ke sessionStorage pada key 'vendor_blueprint' (lihat konstanta
+      // BLUEPRINT_STORAGE_KEY di components/vendor-blueprint-modal.tsx).
+      // Halaman /payment/success akan membuka modal blueprint otomatis jika
+      // key tersebut berisi snapshot.
+      const orderId = `SIM-${Date.now()}`
+      router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
+    } finally {
+      setIsProcessingPayment(false)
+    }
+  }
+
   return (
     <div className="h-screen bg-gray-50 flex flex-col">
       <Header
@@ -365,6 +388,7 @@ export default function EditorPage() {
           subtotal={subtotal}
         />
 
+        {/* CANVAS — single instance, avoids singleton conflict */}
         <Canvas selectedColor={selectedColor} zoomLevel={zoomLevel} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
 
         <RightPanel
@@ -389,12 +413,18 @@ export default function EditorPage() {
           agreedDiscount={agreedDiscount}
           onPayment={handlePayment}
           isProcessingPayment={isProcessingPayment}
+          onSimulateCheckout={handleSimulateCheckout}
+          isSimulatingCheckout={isProcessingPayment}
         />
       </div>
 
-      {/* Mobile Layout - Canvas First with Bottom Navigation */}
+      {/* Mobile Layout — reuses the same Canvas above; only panels differ */}
       <div className="md:hidden flex-1 flex flex-col overflow-hidden pb-16">
-        <Canvas selectedColor={selectedColor} zoomLevel={zoomLevel} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+        {/* Canvas is rendered once in the desktop layout above and shared.
+            On mobile the outer wrapper is hidden, so this slot is intentionally
+            empty — do NOT add a second <Canvas> here (it would create two
+            Fabric instances fighting over the same singleton). */}
+
       </div>
 
       {/* Mobile Bottom Navigation */}
@@ -454,6 +484,8 @@ export default function EditorPage() {
         agreedDiscount={agreedDiscount}
         onPayment={handlePayment}
         isProcessingPayment={isProcessingPayment}
+        onSimulateCheckout={handleSimulateCheckout}
+        isSimulatingCheckout={isProcessingPayment}
       />
 
       <Script

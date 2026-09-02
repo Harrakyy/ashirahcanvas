@@ -30,6 +30,8 @@ interface MobileRightPanelSheetProps {
   agreedDiscount?: number | null
   onPayment?: () => void
   isProcessingPayment?: boolean
+  onSimulateCheckout?: () => void
+  isSimulatingCheckout?: boolean
 }
 
 export default function MobileRightPanelSheet({
@@ -56,6 +58,8 @@ export default function MobileRightPanelSheet({
   agreedDiscount = null,
   onPayment,
   isProcessingPayment = false,
+  onSimulateCheckout,
+  isSimulatingCheckout = false,
 }: MobileRightPanelSheetProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -129,6 +133,8 @@ export default function MobileRightPanelSheet({
               totalQty={totalQty}
               total={total}
               onCustomNow={() => onModeChange('negotiate')}
+              onSimulateCheckout={onSimulateCheckout}
+              isSimulatingCheckout={isSimulatingCheckout}
             />
           )}
 

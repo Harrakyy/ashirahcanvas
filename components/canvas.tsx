@@ -58,26 +58,34 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
   })
 
   // ── Fabric init ────────────────────────────────────────────────────────────
-  // Runs once on mount. ensureCanvas() returns the existing singleton if the
-  // same DOM element is already live (identity check via boundElement), so
-  // React Strict Mode's double-invoke is handled correctly:
-  //   • First mount  → creates Fabric instance, binds to canvasRef.current
-  //   • Strict unmount (dev only) → cleanup runs: saves state, nulls ref
-  //   • Strict remount → ensureCanvas sees DIFFERENT element (Fabric destroyed
-  //     its internal wrapper on dispose, so isConnected = false) → safely
-  //     recreates. With NO dispose call, the DOM wrapper is untouched, so
-  //     ensureCanvas's liveness check hits true on remount → returns same instance.
+  // Runs once on mount ([] deps). On Strict Mode remount, fabricRef.current was
+  // null'd by the previous cleanup, so the background effect (which guards on
+  // fabricRef.current) would silently skip — producing a blank canvas.
+  //
+  // Fix: call setBackground() directly here, right after ensureCanvas(), so the
+  // mockup always loads regardless of whether this is a first mount or a Strict
+  // Mode remount. The color/category effect still runs for subsequent color changes.
   //
   // FIX #4: saveViewState reads latestViewRef.current (not the stale closure
   // value of selectedView) so the correct final zone is persisted on unmount.
   useEffect(() => {
     if (!canvasRef.current) return
-    fabricRef.current = ensureCanvas(canvasRef.current, {
+
+    const canvas = ensureCanvas(canvasRef.current, {
       width: 500,
       height: 650,
       backgroundColor: '#ffffff',
     })
+    fabricRef.current = canvas
+
+    // Load user's saved objects for this zone (no-op if zone is empty)
     loadViewState(selectedView)
+
+    // ↓ Load mockup immediately — not delegated to the color/category effect,
+    //   because that effect skips when fabricRef.current is null on remount.
+    setActiveColor(selectedColor)
+    setBackground(selectedCategory, selectedColor, selectedView)
+    reapplyAllClips(selectedCategory, selectedColor, selectedView)
 
     return () => {
       // FIX #4: non-stale save — reads the ref updated every render.
@@ -93,15 +101,18 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally empty — Fabric instance is one-per-mount lifecycle
 
-  // Load/set the background mockup whenever color or category changes.
-  // Keeps the current zone's user design intact (only garment background
-  // is swapped), as required by PRD §4.3.
+  // Swap garment background when color or category changes AFTER initial mount.
+  // The init effect above handles the first load; this effect handles subsequent
+  // changes. Guard removed: fabricRef.current is always valid here because this
+  // effect runs after the init effect has set it.
   useEffect(() => {
     if (!fabricRef.current) return
     setActiveColor(selectedColor)
     setBackground(selectedCategory, selectedColor, selectedView)
     reapplyAllClips(selectedCategory, selectedColor, selectedView)
   }, [selectedColor, selectedCategory])
+
+
 
   // ── View switching ─────────────────────────────────────────────────────────
   // switchView() is async but the activeZone guard inside it (`getActiveZone() ===

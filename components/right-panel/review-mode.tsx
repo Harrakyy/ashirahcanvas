@@ -11,6 +11,8 @@ interface ReviewModeProps {
   totalQty: number
   total: number
   onCustomNow: () => void
+  onSimulateCheckout?: () => void
+  isSimulatingCheckout?: boolean
 }
 
 export default function ReviewMode({
@@ -24,6 +26,8 @@ export default function ReviewMode({
   totalQty,
   total,
   onCustomNow,
+  onSimulateCheckout,
+  isSimulatingCheckout = false,
 }: ReviewModeProps) {
   return (
     <>
@@ -108,6 +112,16 @@ export default function ReviewMode({
         >
           Custom Now
         </Button>
+        {onSimulateCheckout && (
+          <Button
+            onClick={onSimulateCheckout}
+            disabled={isSimulatingCheckout}
+            variant="outline"
+            className="w-full font-medium py-4 text-blue-950 border-blue-950/30"
+          >
+            Simulasi Checkout (Blueprint Demo)
+          </Button>
+        )}
         {totalQty === 0 && (
           <p className="text-xs text-gray-400 text-center">
             Masukkan jumlah pesanan terlebih dahulu
