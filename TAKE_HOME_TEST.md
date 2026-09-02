@@ -11,7 +11,7 @@ tampil di sisi customer pasca-checkout.
 
 ## Ringkasan Tugas
 
-### Task 1 — Snapshot & Data Extraction Engine (50%)
+### Task 1 — Snapshot & Data Extraction Engine
 
 Buat file utilitas baru **`lib/ui/blueprint-extractor.ts`** (react/UI-pure, imperatif, di luar
 siklus hidup React):
@@ -21,7 +21,41 @@ siklus hidup React):
    (gambar asli yang di-upload) dari background/mockup kaos, lalu ekstrak **Base64 `src`**
    beserta **koordinat kasarnya** (`left/top`, `width/height`, `scaleX/scaleY`).
 
-### Task 2 — Vendor Blueprint Modal / UI (50%)
+### Kontrak tipe (wajib ada, isi field bebas disesuaikan)
+
+Kandidat **wajib** membuat file `types/blueprint.ts` (belum ada — dibuat sendiri, mengikuti
+golden rule #3 `ARCHITECTURE.md`: semua tipe kontrak didefinisikan sekali di `types/`, bukan
+inline di komponen). Interface dasar yang harus ada:
+
+```typescript
+// types/blueprint.ts
+export interface BlueprintAsset {
+  zone: string        // 'front' | 'back' | 'left' | 'right'
+  src: string         // Base64 data URL objek user
+  left: number
+  top: number
+  width: number
+  height: number
+  scaleX: number
+  scaleY: number
+}
+
+export interface ZoneBlueprint {
+  zone: string
+  hasDesign: boolean
+  assets: BlueprintAsset[]
+}
+
+export interface BlueprintSnapshot {
+  zones: ZoneBlueprint[]
+  capturedAt: number  // Date.now()
+}
+```
+
+Field boleh ditambah sesuai kebutuhan, tapi **shape dasar ini wajib dipenuhi** supaya modal
+(Task 2) punya kontrak stabil saat membaca data dari `sessionStorage`.
+
+### Task 2 — Vendor Blueprint Modal / UI
 
 Triger & cangkang modal sudah disiapkan di repo (`components/vendor-blueprint-modal.tsx`,
 `app/payment/success/page.tsx`). Selesaikan **isi** modal:
@@ -99,10 +133,16 @@ Catatan:
 ## Panduan teknis (penting)
 
 1. **Snapshot SEBELUM navigasi.** Data desain (`viewStates`) hidup di memori modul — hilang saat
-   reload/full-navigation. Panggil `snapshotAllZones()` **di editor saat checkout** (di
-   `handleSimulateCheckout` / balik `onSuccess` `snap.pay`), lalu simpan hasilnya ke
-   `sessionStorage` dengan key `'vendor_blueprint'` (gunakan konstanta `BLUEPRINT_STORAGE_KEY`
-   dari `vendor-blueprint-modal.tsx`). Jangan tulis logic ekstraksi di dalam komponen React.
+   reload/full-navigation. Panggil `snapshotAllZones()` di dua tempat berikut:
+
+   - **`handleSimulateCheckout` (tombol "Simulasi Checkout (Blueprint Demo)")** — **wajib
+     diimplementasikan**. Ini jalur utama pengujian karena zero env vars.
+   **Callback `onSuccess` alur pembayaran Midtrans asli (`snap.pay`)** — opsional untuk
+     diimplementasikan, tapi sebaiknya konsisten kalau sempat.
+
+   Simpan hasilnya ke `sessionStorage` dengan key `'vendor_blueprint'` (gunakan konstanta
+   `BLUEPRINT_STORAGE_KEY` dari `vendor-blueprint-modal.tsx`). Jangan tulis logic ekstraksi di
+   dalam komponen React.
 2. **Jangan merusak performa kanvas.** Extractor hanya MEMBACA state — tidak boleh memanggil
    `renderAll()`, mengubah objek, atau nempel ke event loop canvas. Halaman `/payment/success`
    tidak punya canvas instance (canvas unmount saat keluar `/editor`).
@@ -113,6 +153,10 @@ Catatan:
    `absolutePositioned`. Sesuaikan koordinat sesuai CARA BACA, bukan asumsi.
 5. **Harga tetap server-authoritative** — blueprint hanya data desain/asset, tidak boleh
    menghitung atau membawa harga.
+6. **Kuartakan batas `sessionStorage`.** Base64 gambar dari 4 zona bisa mendekati/melebihi limit
+   browser (~5–10MB). Pertimbangkan **downscale** gambar sebelum disimpan, atau setidaknya
+   bungkus `sessionStorage.setItem(...)` dalam `try/catch` agar gagal menulis tidak terjadi
+   diam-diam. Sebutkan pendekatan yang kamu pilih di catatan teknis PR.
 
 ---
 
@@ -125,6 +169,17 @@ npm run build      # harus berhasil
 
 Catatan: `npm run lint` belum punya config — pakai gate di atas. Kerjakan dengan `npm run dev`
 (atau `pnpm dev` bila memakai pnpm).
+
+---
+
+## Waktu Pengerjaan
+
+- **Durasi:** 5 hari kerja.
+- **Batas akhir pengumpulan PR:** Senin, 7 September 2026, pukul 23:59 WIB.
+- PR yang masuk setelah batas waktu tanpa konfirmasi sebelumnya berpotensi **tidak dinilai**.
+- Kanal tanya: [isi kanal: email/Slack/Discord PIC rekrutmen]
+  <!-- TODO: isi kanal kontak aktual -->
+  (Hubungi lewat kanal tersebut jika ada pertanyaan seputar tugas ini.)
 
 ---
 
@@ -144,12 +199,11 @@ pribadi bila perlu akses deploy).
 
 ## Kriteria penilaian (CTO)
 
-| Aspek | Bobot | Fokus |
-|---|---|---|
-| **State Management** | 40% | Kemampuan mengekstrak data dari state internal (`design-state.ts` / canvas) tanpa merusak performa kanvas. |
-| **Data Parsing** | 30% | Ketepatan memfilter & mengambil objek gambar **user** dari background mockup; ekstraksi Base64 `src` + koordinat. |
-| **React Cleanliness** | 30% | Kebersihan kode UI, TypeScript yang ketat, dan tidak ada re-render yang tidak perlu pada mesin kanvas utama. |
+| Aspek | Bobot | Task terkait | Fokus |
+|---|---|---|---|
+| **State Management** | 40% | Task 1 | Kemampuan mengekstrak data dari state internal (`design-state.ts` / canvas) tanpa merusak performa kanvas. |
+| **Data Parsing** | 30% | Task 1 | Ketepatan memfilter & mengambil objek gambar **user** dari background mockup; ekstraksi Base64 `src` + koordinat. |
+| **React Cleanliness** | 30% | Task 2 | Kebersihan kode UI modal, TypeScript ketat, tidak ada re-render tidak perlu pada mesin kanvas utama. |
 
-Sub-poin yang memberi poin lebih: kontrak tipe di `types/` (bukan inline di komponen), engine
-imperatif terisolasi dari React, sadar batasan zone yang belum dibuka, dan konsistensi dengan
-`ARCHITECTURE.md`.
+> Task 1 menentukan 70% nilai total (State Management + Data Parsing), Task 2 menentukan 30%
+> (React Cleanliness). Kualitas ekstraksi data adalah prioritas utama penilaian.
