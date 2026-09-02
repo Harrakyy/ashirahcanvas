@@ -116,8 +116,7 @@ export default function ReviewMode({
           <Button
             onClick={onSimulateCheckout}
             disabled={isSimulatingCheckout}
-            variant="outline"
-            className="w-full font-medium py-4 text-blue-950 border-blue-950/30"
+            className="w-full gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium py-4"
           >
             Simulasi Checkout (Blueprint Demo)
           </Button>
