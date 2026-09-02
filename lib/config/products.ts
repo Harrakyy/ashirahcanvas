@@ -1,3 +1,8 @@
+/**
+ * OWNERSHIP: Bersama (konfigurasi bersama)
+ * Katalog produk + harga dasar (basePrice) per produk. basePrice di sini jadi
+ * masukan buildPriceQuote di lib/server/pricing.ts. Lihat ARCHITECTURE.md.
+ */
 export interface Product {
   id: string
   category: 'tshirts' | 'jackets' | 'polo' | 'sport'
@@ -9,6 +14,7 @@ export interface Product {
   material: string
   badge?: 'Populer' | 'Best Seller' | 'Turun Harga'
   thumbnailImage?: string
+  image?: string
   basePrice?: number
 }
 
@@ -25,6 +31,7 @@ export const productsByCategory: Record<string, Product[]> = {
       material: '100% Cotton, 200 GSM',
       badge: 'Populer',
       basePrice: 85000,
+      image: '/tshirts model/Premium Cotton T-Shirt.png',
     },
     {
       id: '2',
@@ -37,6 +44,7 @@ export const productsByCategory: Record<string, Product[]> = {
       material: '100% Cotton, 160 GSM',
       badge: 'Best Seller',
       basePrice: 65000,
+      image: '/tshirts model/Basic White T-Shirt.png',
     },
     {
       id: '3',
@@ -48,6 +56,7 @@ export const productsByCategory: Record<string, Product[]> = {
       sizes: 'S-3XL',
       material: 'Cotton Blend, 180 GSM',
       basePrice: 75000,
+      image: '/tshirts model/Vintage Blend T-Shirt.png',
     },
     {
       id: '4',
@@ -60,6 +69,7 @@ export const productsByCategory: Record<string, Product[]> = {
       material: 'Polyester, 150 GSM',
       badge: 'Turun Harga',
       basePrice: 72000,
+      image: '/tshirts model/Performance T-Shirt.png',
     },
     {
       id: '5',
@@ -71,6 +81,7 @@ export const productsByCategory: Record<string, Product[]> = {
       sizes: 'S-5XL',
       material: '100% Cotton, 220 GSM',
       basePrice: 82000,
+      image: '/tshirts model/Oversized T-Shirt.png',
     },
     {
       id: '6',
@@ -82,6 +93,7 @@ export const productsByCategory: Record<string, Product[]> = {
       sizes: 'XS-2XL',
       material: '100% Cotton, 180 GSM',
       basePrice: 78000,
+      image: '/tshirts model/Fitted T-Shirt.png',
     },
     {
       id: '7',
@@ -94,6 +106,7 @@ export const productsByCategory: Record<string, Product[]> = {
       material: 'Dry-fit Polyester, 140 GSM',
       badge: 'Populer',
       basePrice: 95000,
+      image: '/tshirts model/Sports T-Shirt.png',
     },
     {
       id: '8',
@@ -105,6 +118,7 @@ export const productsByCategory: Record<string, Product[]> = {
       sizes: 'S-3XL',
       material: 'Premium Cotton, 240 GSM',
       basePrice: 120000,
+      image: '/tshirts model/Luxury Cotton T-Shirt.png',
     },
   ],
   jackets: [

@@ -17,6 +17,7 @@ interface MobileLeftPanelSheetProps {
   selectedColor: string
   onColorChange: (color: string) => void
   colors: string[]
+  disabledColors?: string[]
   selectedSize: string
   onSizeChange: (size: string) => void
   sizes: string[]
@@ -33,6 +34,7 @@ export default function MobileLeftPanelSheet({
   selectedColor,
   onColorChange,
   colors,
+  disabledColors,
   selectedSize,
   onSizeChange,
   sizes,
@@ -80,6 +82,7 @@ export default function MobileLeftPanelSheet({
               selectedColor={selectedColor}
               onColorChange={onColorChange}
               colors={colors}
+              disabledColors={disabledColors}
               selectedSize={selectedSize}
               onSizeChange={onSizeChange}
               sizes={sizes}

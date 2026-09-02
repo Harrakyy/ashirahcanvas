@@ -3,13 +3,7 @@
 import { useRef, useEffect } from 'react'
 import ReviewMode from './right-panel/review-mode'
 import NegotiateMode from './right-panel/negotiate-mode'
-
-interface ChatMessage {
-  id: number
-  type: 'user' | 'ai'
-  message: string
-  isLoading?: boolean
-}
+import type { ChatMessage } from '@/types/chat'
 
 interface RightPanelProps {
   mode: 'review' | 'negotiate'

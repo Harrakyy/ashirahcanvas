@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Snap } from 'midtrans-client'
-import { getSession } from '@/lib/session-store'
-import { getOfferedPrice, getTotalPrice } from '@/lib/negotiation-state'
+import { getSession } from '@/lib/server/session-store'
+import { getOfferedPrice, getTotalPrice } from '@/lib/server/negotiation-state'
 
 const snap = new Snap({
   isProduction: process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === 'true',

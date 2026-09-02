@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getSession, updateSession } from '@/lib/session-store'
-import { getOfferedPrice, getDiscountPercent } from '@/lib/negotiation-state'
+import { getSession, updateSession } from '@/lib/server/session-store'
+import { getOfferedPrice, getDiscountPercent } from '@/lib/server/negotiation-state'
 
 export async function GET(request: Request) {
   try {

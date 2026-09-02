@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createSession } from '@/lib/session-store'
-import { generateNegotiationResponse } from '@/lib/groq'
+import { createSession } from '@/lib/server/session-store'
+import { generateNegotiationResponse } from '@/lib/server/groq'
 import {
   getInitialTier,
   getDiscountPercent,
@@ -9,14 +9,16 @@ import {
   buildSystemPrompt,
   validateAIResponse,
   MINIMUM_ORDER_FOR_DISCOUNT,
-} from '@/lib/negotiation-state'
+} from '@/lib/server/negotiation-state'
+import { getProductById } from '@/lib/config/products'
+import { buildPriceQuote } from '@/lib/server/pricing'
 
 const MAX_ORDER_QTY = 10000
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { productId, category, color, quantities, basePrice, logoPrice, textPrice } = body
+    const { productId, category, color, quantities } = body
 
     const totalQty: number = quantities
 
@@ -32,6 +34,14 @@ export async function POST(request: Request) {
       )
     }
 
+    if (typeof productId !== 'string' || typeof category !== 'string') {
+      return NextResponse.json(
+        { error: 'productId dan category diperlukan' },
+        { status: 400 }
+      )
+    }
+
+    const quote = buildPriceQuote(productId, category)
     const initialTier = getInitialTier(totalQty)
     const sessionId = crypto.randomUUID()
 
@@ -41,9 +51,9 @@ export async function POST(request: Request) {
       productId,
       category,
       color,
-      basePrice,
-      logoPrice,
-      textPrice,
+      basePrice: quote.basePrice,
+      logoPrice: quote.logoPrice,
+      textPrice: quote.textPrice,
       quantity: totalQty,
       currentTier: initialTier as 0 | 1 | 2 | 3,
       agreedDiscount: null,
@@ -55,7 +65,7 @@ export async function POST(request: Request) {
     let initialMessage: string
 
     try {
-      const unitPrice = basePrice + logoPrice + textPrice
+      const unitPrice = quote.unitPrice
       const discount = getDiscountPercent(initialTier)
       const offeredPrice = getOfferedPrice(session)
       const totalPrice = getTotalPrice(session)
@@ -102,7 +112,7 @@ Sapa customer dengan hangat, sebutkan jumlah pesanan, dan langsung tawarkan harg
       const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)')
       initialMessage = validateAIResponse(greeting, session)
     } catch {
-      const unitPrice = basePrice + logoPrice + textPrice
+      const unitPrice = quote.unitPrice
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
         initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan kaos custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
       } else {
@@ -127,6 +137,7 @@ Sapa customer dengan hangat, sebutkan jumlah pesanan, dan langsung tawarkan harg
       currentPrice: getOfferedPrice(session),
       tier: initialTier,
       totalQty,
+      quote,
     })
   } catch {
     return NextResponse.json({ error: 'Gagal membuat sesi negosiasi' }, { status: 500 })

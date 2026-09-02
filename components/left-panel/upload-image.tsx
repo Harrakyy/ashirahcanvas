@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback } from 'react'
 import { Upload } from 'lucide-react'
-import { addImageToCanvas } from '@/lib/canvas-engine'
+import { addImageToCanvas } from '@/lib/ui/canvas-engine'
 import { useDesignStore } from '@/store/design-store'
 
 const MAX_SIZE = 5 * 1024 * 1024

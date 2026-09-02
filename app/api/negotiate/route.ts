@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getSession, updateSession } from '@/lib/session-store'
-import { generateNegotiationResponse } from '@/lib/groq'
+import { getSession, updateSession } from '@/lib/server/session-store'
+import { generateNegotiationResponse } from '@/lib/server/groq'
 import {
   getDiscountPercent,
   getOfferedPrice,
@@ -10,7 +10,7 @@ import {
   validateAIResponse,
   getNextTier,
   MINIMUM_ORDER_FOR_DISCOUNT,
-} from '@/lib/negotiation-state'
+} from '@/lib/server/negotiation-state'
 
 export async function POST(request: Request) {
   try {

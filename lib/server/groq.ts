@@ -1,3 +1,9 @@
+/**
+ * OWNERSHIP: Backend
+ * Gateway model AI (Groq) + retry. Output AI selalu dikuatkan oleh
+ * validateAIResponse di negotiation-state sebelum sampai ke user.
+ * Lihat ARCHITECTURE.md section C.
+ */
 import Groq from 'groq-sdk'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })

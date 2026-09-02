@@ -1,3 +1,8 @@
+/**
+ * OWNERSHIP: Backend
+ * Persistensi sesi negosiasi (Redis via Upstash) + interface NegotiationSession.
+ * Frontend tidak boleh import langsung — akses lewat /api/session/*. Lihat ARCHITECTURE.md.
+ */
 import { Redis } from '@upstash/redis'
 
 const redis = new Redis({

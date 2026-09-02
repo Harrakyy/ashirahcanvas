@@ -5,7 +5,7 @@ import { ChevronLeft } from 'lucide-react'
 import Header from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { productsByCategory } from '@/lib/products'
+import { productsByCategory } from '@/lib/config/products'
 import { useDesignStore } from '@/store/design-store'
 
 export default function CategoryPage() {
@@ -67,15 +67,24 @@ export default function CategoryPage() {
               <button
                 key={product.id}
                 onClick={() => handleSelectProduct(product.id)}
-                className="group flex flex-col gap-2 md:gap-3 p-3 md:p-4 bg-white rounded-lg md:rounded-xl shadow-sm border-2 border-gray-200 hover:border-blue-950 hover:shadow-md transition-all"
+                className="group flex flex-col gap-2 md:gap-3 p-3 md:p-4 bg-white rounded-lg md:rounded-xl shadow-sm border-2 border-gray-200 hover:border-blue-950 hover:shadow-md transition-all h-full"
               >
-                {/* Image Placeholder */}
-                <div className="w-full aspect-square bg-gray-100 rounded-lg flex items-center justify-center text-3xl md:text-5xl group-hover:bg-gray-200 transition-colors">
-                  {getProductIcon()}
+                {/* Image */}
+                <div className="w-full aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                  {product.image ? (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="text-3xl md:text-5xl">{getProductIcon()}</span>
+                  )}
                 </div>
 
                 {/* Badge */}
-                {product.badge && (
+                {product.badge && category !== 'tshirts' && (
                   <div className="flex gap-1 justify-center">
                     <Badge
                       variant="outline"
@@ -87,7 +96,7 @@ export default function CategoryPage() {
                 )}
 
                 {/* Product Info */}
-                <div className="text-left space-y-1 md:space-y-2">
+                <div className="text-left space-y-1 md:space-y-2 flex-1">
                   <h3 className="font-semibold text-xs md:text-sm text-gray-900 line-clamp-2">
                     {product.name}
                   </h3>
@@ -119,7 +128,7 @@ export default function CategoryPage() {
                 </div>
 
                 {/* Select Label - shows "Pilih Produk" without nested button */}
-                <div className="w-full mt-2 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white text-xs font-medium rounded text-center transition">
+                <div className="w-full mt-2 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white text-xs font-medium rounded text-center transition mt-auto">
                   Pilih Produk
                 </div>
               </button>

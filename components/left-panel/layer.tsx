@@ -12,7 +12,7 @@ import {
   selectLayerById,
   getCanvas,
   type LayerData,
-} from '@/lib/canvas-engine'
+} from '@/lib/ui/canvas-engine'
 
 export default function LayerPanel() {
   const [layers, setLayers] = useState<LayerData[]>([])

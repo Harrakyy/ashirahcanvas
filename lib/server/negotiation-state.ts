@@ -1,3 +1,9 @@
+/**
+ * OWNERSHIP: Backend
+ * State mesin negosiasi: tier diskon, intent user, buildSystemPrompt,
+ * dan validateAIResponse (koreksi harga output AI). Jangan import dari frontend.
+ * Lihat ARCHITECTURE.md section C.
+ */
 import type { NegotiationSession } from './session-store'
 
 export const DISCOUNT_TIERS = [

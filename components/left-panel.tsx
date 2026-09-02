@@ -26,6 +26,7 @@ interface LeftPanelProps {
   selectedColor: string
   onColorChange: (color: string) => void
   colors: string[]
+  disabledColors?: string[]
   selectedSize: string
   onSizeChange: (size: string) => void
   sizes: string[]
@@ -52,6 +53,7 @@ export default function LeftPanel({
   selectedColor,
   onColorChange,
   colors,
+  disabledColors,
   selectedSize,
   onSizeChange,
   sizes,
@@ -93,6 +95,7 @@ export default function LeftPanel({
             selectedColor={selectedColor}
             onColorChange={onColorChange}
             colors={colors}
+            disabledColors={disabledColors}
             selectedSize={selectedSize}
             onSizeChange={onSizeChange}
             sizes={sizes}

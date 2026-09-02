@@ -102,7 +102,7 @@ export default function HelpPanel() {
           </p>
         </div>
 
-        <button className="w-full px-4 py-2 border-2 border-blue-950 text-blue-950 rounded-lg text-sm hover:bg-blue-50 transition font-medium flex items-center justify-center gap-2">
+        <button className="w-full px-4 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded-lg text-sm transition font-medium flex items-center justify-center gap-2">
           <MessageCircle className="w-4 h-4" />
           Chat dengan Tim Kami
         </button>

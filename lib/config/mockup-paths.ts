@@ -1,5 +1,11 @@
+/**
+ * OWNERSHIP: Bersama (konfigurasi bersama)
+ * Pemetaan warna → nama & path file mockup (getMockupUrl).
+ * Dipakai engine canvas (client) untuk menampilkan mockup. Lihat ARCHITECTURE.md.
+ */
 const HEX_TO_COLOR_NAME: Record<string, string> = {
   '#FFFFFF': 'white',
+  '#000000': 'black',
 }
 
 const CATEGORY_NORMALIZE: Record<string, string> = {

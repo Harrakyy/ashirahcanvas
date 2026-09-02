@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { productsByCategory, Product } from '@/lib/products'
+import { productsByCategory, Product } from '@/lib/config/products'
 import { useDesignStore } from '@/store/design-store'
 import { CheckCircle2 } from 'lucide-react'
 

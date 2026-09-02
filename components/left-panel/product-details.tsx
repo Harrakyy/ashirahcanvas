@@ -4,12 +4,13 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ProductSwitcherDialog } from '@/components/product-switcher-dialog'
 import { useDesignStore } from '@/store/design-store'
-import { getProductById, productsByCategory } from '@/lib/products'
+import { getProductById, productsByCategory } from '@/lib/config/products'
 
 interface ProductDetailsProps {
   selectedColor: string
   onColorChange: (color: string) => void
   colors: string[]
+  disabledColors?: string[]
   selectedSize: string
   onSizeChange: (size: string) => void
   sizes: string[]
@@ -23,6 +24,7 @@ export default function ProductDetails({
   selectedColor,
   onColorChange,
   colors,
+  disabledColors = [],
   selectedSize,
   onSizeChange,
   sizes,
@@ -112,19 +114,28 @@ export default function ProductDetails({
           </span>
         </h4>
         <div className="grid grid-cols-8 gap-2">
-          {colors.map(color => (
-            <button
-              key={color}
-              onClick={() => onColorChange(color)}
-              className={`w-8 h-8 rounded-full transition-all ring-offset-2 ${
-                selectedColor === color
-                  ? 'ring-2 ring-blue-950 ring-offset-2'
-                  : 'hover:ring-2 hover:ring-gray-400 hover:ring-offset-1'
-              }`}
-              style={{ backgroundColor: color, border: selectedColor === color ? '2px solid #1a1a4d' : '1px solid #d1d5db' }}
-              title={color}
-            />
-          ))}
+          {colors.map(color => {
+            const isDisabled = disabledColors.includes(color)
+            return (
+              <button
+                key={color}
+                onClick={() => {
+                  if (isDisabled) return
+                  onColorChange(color)
+                }}
+                disabled={isDisabled}
+                className={`w-8 h-8 rounded-full transition-all ring-offset-2 ${
+                  isDisabled
+                    ? 'opacity-25 cursor-not-allowed'
+                    : selectedColor === color
+                      ? 'ring-2 ring-blue-950 ring-offset-2'
+                      : 'hover:ring-2 hover:ring-gray-400 hover:ring-offset-1'
+                }`}
+                style={{ backgroundColor: color, border: isDisabled ? '1px solid #e5e7eb' : selectedColor === color ? '2px solid #1a1a4d' : '1px solid #d1d5db' }}
+                title={isDisabled ? `${color} (segera hadir)` : color}
+              />
+            )
+          })}
         </div>
       </div>
 

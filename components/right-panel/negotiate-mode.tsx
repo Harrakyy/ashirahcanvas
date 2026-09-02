@@ -1,12 +1,6 @@
 import { ChevronLeft, Send, MessageCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-interface ChatMessage {
-  id: number
-  type: 'user' | 'ai'
-  message: string
-  isLoading?: boolean
-}
+import type { ChatMessage } from '@/types/chat'
 
 interface NegotiateModeProps {
   onBack: () => void
@@ -160,18 +154,17 @@ export default function NegotiateMode({
               disabled={totalQty === 0 || isProcessingPayment}
               type="button"
               onClick={onPayment}
-              className={`w-full font-semibold py-2 ${
+              className={`w-full font-semibold py-2 bg-blue-950 hover:bg-blue-900 text-white ${
                 totalQty === 0 || isProcessingPayment
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
               }`}
             >
               {isProcessingPayment ? 'Memproses...' : 'Lanjut ke Pembayaran'}
             </Button>
           )}
           <Button
-            variant="outline"
-            className="w-full border-2 border-blue-950 text-blue-950 hover:bg-blue-50 gap-2 font-medium py-2"
+            className="w-full bg-blue-950 hover:bg-blue-900 text-white gap-2 font-medium py-2"
             disabled
           >
             <MessageCircle className="w-4 h-4" />

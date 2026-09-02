@@ -11,6 +11,9 @@ import MobileBottomNav from '@/components/mobile-bottom-nav'
 import MobileLeftPanelSheet from '@/components/mobile-left-panel-sheet'
 import MobileRightPanelSheet from '@/components/mobile-right-panel-sheet'
 import { useDesignStore } from '@/store/design-store'
+import type { PriceQuote } from '@/types/pricing'
+import type { ChatMessage } from '@/types/chat'
+import type { NegotiateResponse, SessionInitResponse, SessionStatusResponse } from '@/types/api'
 
 export default function EditorPage() {
   const router = useRouter()
@@ -32,7 +35,7 @@ export default function EditorPage() {
   const [rightPanelMode, setRightPanelMode] = useState<'review' | 'negotiate'>(
     'review'
   )
-  const [chatMessages, setChatMessages] = useState<Array<{ id: number; type: 'user' | 'ai'; message: string; isLoading?: boolean }>>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [currentMessage, setCurrentMessage] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [currentPrice, setCurrentPrice] = useState(105000)
@@ -41,8 +44,10 @@ export default function EditorPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(100)
+  const [quote, setQuote] = useState<PriceQuote | null>(null)
 
   const sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL']
+  const activeColors = ['#FFFFFF', '#000000']
   const colors = [
     '#000000',
     '#FFFFFF',
@@ -77,15 +82,35 @@ export default function EditorPage() {
     '#00BFFF',
     '#F0E68C',
   ]
+  const disabledColors = colors.filter(c => !activeColors.includes(c))
 
-  const basePrice = 85000
-  const logoPrice = 15000
-  const textPrice = 5000
+  const basePrice = quote?.basePrice ?? 0
+  const logoPrice = quote?.logoPrice ?? 0
+  const textPrice = quote?.textPrice ?? 0
 
   const totalQty = Object.values(quantities).reduce((a, b) => a + b, 0)
-  const unitPrice = basePrice + logoPrice + textPrice
+  const unitPrice = quote?.unitPrice ?? 0
   const subtotal = currentPrice
   const total = subtotal * totalQty
+
+  useEffect(() => {
+    const productId = useDesignStore.getState().selectedProductId
+    const category = useDesignStore.getState().selectedCategory
+
+    let cancelled = false
+    fetch(`/api/quote?productId=${encodeURIComponent(productId)}&category=${encodeURIComponent(category)}`)
+      .then(res => (res.ok ? res.json() : Promise.reject(new Error('quote failed'))))
+      .then((data: PriceQuote) => {
+        if (!cancelled) setQuote(data)
+      })
+      .catch(() => {
+        if (!cancelled) setQuote(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const initSession = useCallback(async (force = false) => {
     if (!force && sessionId) return
@@ -102,15 +127,12 @@ export default function EditorPage() {
           category,
           color: selectedColor,
           quantities: totalQty,
-          basePrice,
-          logoPrice,
-          textPrice,
         }),
       })
 
       if (!res.ok) throw new Error('Failed to init session')
 
-      const data = await res.json()
+      const data = (await res.json()) as SessionInitResponse
       setSessionId(data.sessionId)
       setCurrentPrice(data.currentPrice)
       setCurrentTier(data.tier)
@@ -146,7 +168,7 @@ export default function EditorPage() {
         return false
       }
 
-      const data = await res.json()
+      const data = (await res.json()) as SessionStatusResponse
       setSessionId(data.sessionId)
       setCurrentPrice(data.currentPrice)
       setCurrentTier(data.tier)
@@ -237,7 +259,7 @@ export default function EditorPage() {
 
       if (!res.ok) throw new Error('Failed to send message')
 
-      const data = await res.json()
+      const data = (await res.json()) as NegotiateResponse
 
       setChatMessages(data.messages)
       setCurrentPrice(data.currentPrice)
@@ -333,6 +355,7 @@ export default function EditorPage() {
           selectedColor={selectedColor}
           onColorChange={setSelectedColor}
           colors={colors}
+          disabledColors={disabledColors}
           selectedSize={selectedSize}
           onSizeChange={setSelectedSize}
           sizes={sizes}
@@ -397,6 +420,7 @@ export default function EditorPage() {
         selectedColor={selectedColor}
         onColorChange={setSelectedColor}
         colors={colors}
+        disabledColors={disabledColors}
         selectedSize={selectedSize}
         onSizeChange={setSelectedSize}
         sizes={sizes}
