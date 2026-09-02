@@ -48,6 +48,38 @@ Triger & cangkang modal sudah disiapkan di repo (`components/vendor-blueprint-mo
 
 ---
 
+## Perlu env vars atau tidak?
+
+**Tidak.** Task 1 & 2 (canvas, ekstraksi blueprint, mock checkout) berjalan 100% tanpa env vars.
+Cukup:
+
+```bash
+npm install
+npm run dev   # buka http://localhost:3000/editor
+```
+
+`.env.local` tidak wajib dibuat. Rincian alur mana yang butuh key:
+
+| Alur | Butuh env? | Keterangan |
+|---|---|---|
+| `/api/quote` (harga dasar), kanvas, mockup, upload, layer | ❌ | Tidak bergantung env |
+| **Simulasi Checkout → `/payment/success` → blueprint** | ❌ | Murni client-side (`sessionStorage` + `router.push`) |
+| AI negosiasi (chat asli) | ✅ | `GROQ_API_KEY` + `KV_REST_API_URL` / `KV_REST_API_TOKEN` (Upstash Redis) |
+| Pembayaran Midtrans sandbox | ✅ | `MIDTRANS_SERVER_KEY` + `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY` |
+
+Catatan:
+
+- Kalau tes **tanpa env vars**, tombol Negosiasi tetap tidak bikin error — `initSession` di
+  `app/editor/page.tsx` punya fallback offline. Hanya saja `agreedDiscount` tidak akan terisi
+  sehingga tombol "Bayar" asli terkunci — tidak masalah, pakai **"Simulasi Checkout (Blueprint Demo)"**.
+- AI negosiasi butuh **Upstash Redis** (wiring-nya keras di `lib/server/session-store.ts`, tanpa
+  fallback in-memory) **dan** Groq. Keduanya punya free tier dan self-signup
+  (console.groq.com, upstash.com) — kalau ingin mencoba, daftar sendiri.
+- **Jangan meminta/menyebar `MIDTRANS_SERVER_KEY` milik tim** — key itu secret. Untuk uji
+  pembayaran asli, buka akun sandbox Midtrans sendiri (self-service, opsional).
+
+---
+
 ## Yang SUDAH ada di repo (jangan diulang)
 
 - **4 zona aktif lengkap** (`lib/config/zones.ts`) + mockup PNG putih/hitam di `public/mockups/`.
