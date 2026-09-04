@@ -11,6 +11,7 @@ import MobileBottomNav from '@/components/mobile-bottom-nav'
 import MobileLeftPanelSheet from '@/components/mobile-left-panel-sheet'
 import MobileRightPanelSheet from '@/components/mobile-right-panel-sheet'
 import { useDesignStore } from '@/store/design-store'
+import { captureAndPersistBlueprint } from '@/lib/ui/blueprint-extractor'
 import type { PriceQuote } from '@/types/pricing'
 import type { ChatMessage } from '@/types/chat'
 import type { NegotiateResponse, SessionInitResponse, SessionStatusResponse } from '@/types/api'
@@ -289,6 +290,20 @@ export default function EditorPage() {
     setZoomLevel(prev => Math.max(prev - 10, 50))
   }
 
+  // ── Take-Home Test: capture blueprint sebelum meninggalkan /editor ───
+  // Dipakai dua alur checkout (Simulasi Checkout & pembayaran Midtrans asli).
+  // WAJIB dipanggil sebelum router.push: viewStates hidup di memori modul
+  // (lib/ui/design-state.ts) dan hilang begitu halaman /editor unmount.
+  const captureBlueprint = useCallback(
+    () =>
+      captureAndPersistBlueprint({
+        productId: useDesignStore.getState().selectedProductId,
+        category: useDesignStore.getState().selectedCategory,
+        colorHex: selectedColor,
+      }),
+    [selectedColor]
+  )
+
   const handlePayment = async () => {
     if (!sessionId || agreedDiscount === null || isProcessingPayment) return
 
@@ -314,14 +329,28 @@ export default function EditorPage() {
       }
 
       snap.pay(token, {
-        onSuccess: (result: any) => {
+        // Take-Home Test: snapshot blueprint juga di alur pembayaran asli,
+        // konsisten dengan handleSimulateCheckout. onPending ikut di-wire
+        // karena ia juga menuju /payment/success — tanpa ini pembayaran
+        // pending akan mendarat di modal blueprint yang kosong.
+        // Kegagalan hanya di-log (bukan alert): pembayarannya sendiri sudah
+        // berhasil, dan modal punya empty state yang layak.
+        onSuccess: async (result: any) => {
           console.log('[AshirahBot] Payment success:', result)
           const oid = result.order_id || orderId || ''
+          const blueprint = await captureBlueprint()
+          if (!blueprint.ok) {
+            console.error('[blueprint] gagal menyimpan snapshot:', blueprint.message)
+          }
           router.push(`/payment/success?order_id=${encodeURIComponent(oid)}`)
         },
-        onPending: (result: any) => {
+        onPending: async (result: any) => {
           console.log('[AshirahBot] Payment pending:', result)
           const oid = result.order_id || orderId || ''
+          const blueprint = await captureBlueprint()
+          if (!blueprint.ok) {
+            console.error('[blueprint] gagal menyimpan snapshot:', blueprint.message)
+          }
           router.push(`/payment/success?order_id=${encodeURIComponent(oid)}`)
         },
         onError: (result: any) => {
@@ -339,20 +368,22 @@ export default function EditorPage() {
 
   // ── Take-Home Test seam: "Simulasi Checkout" ─────────────────────────
   // Jalan pintas dev-only untuk mencapai /payment/success TANPA negosiasi AI
-  // maupun Midtrans (zero env vars), supaya fitur Vendor Blueprint bisa
-  // dirancang & diuji lebih dulu. Alur pembayaran asli (handlePayment) tetap
-  // utuh di atas; jangan ragu untuk menggabungkan keduanya saat menerapkan
-  // snapshotAllZones() di callback onSuccess snap.pay.
-  const handleSimulateCheckout = () => {
+  // maupun Midtrans (zero env vars). snapshotAllZones() dipanggil di sini
+  // SEBELUM navigasi karena viewStates hidup di memori modul (design-state.ts)
+  // dan hilang saat halaman /editor unmount. Alur pembayaran asli
+  // (handlePayment) tetap utuh di atas dan tidak disentuh di sini.
+  const handleSimulateCheckout = async () => {
     if (isProcessingPayment) return
     setIsProcessingPayment(true)
     try {
-      // TODO (Take-Home Test Task 1 + 2): panggil snapshotAllZones() dari
-      // lib/ui/blueprint-extractor.ts SEBELUM navigasi, lalu simpan hasilnya
-      // ke sessionStorage pada key 'vendor_blueprint' (lihat konstanta
-      // BLUEPRINT_STORAGE_KEY di components/vendor-blueprint-modal.tsx).
-      // Halaman /payment/success akan membuka modal blueprint otomatis jika
-      // key tersebut berisi snapshot.
+      const result = await captureBlueprint()
+      if (!result.ok) {
+        // Non-blocking: checkout tetap lanjut, modal blueprint akan
+        // menampilkan state kosong (lihat vendor-blueprint-modal.tsx).
+        // Tidak digagalkan diam-diam — user diberi tahu kenapa.
+        console.error('[blueprint] gagal menyimpan snapshot:', result.message)
+        alert(`Blueprint gagal disimpan: ${result.message}`)
+      }
       const orderId = `SIM-${Date.now()}`
       router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
     } finally {
