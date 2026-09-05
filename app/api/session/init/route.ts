@@ -109,7 +109,7 @@ Total: Rp ${totalPrice.toLocaleString('id-ID')}.
 Sapa customer dengan hangat, sebutkan jumlah pesanan, dan langsung tawarkan harga diskon ini.`
       }
 
-      const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)')
+      const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)', 'init')
       initialMessage = validateAIResponse(greeting, session)
     } catch {
       const unitPrice = quote.unitPrice

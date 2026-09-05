@@ -7,6 +7,8 @@ import {
   getTotalPrice,
   classifyUserIntent,
   buildSystemPrompt,
+  buildStyleInstruction,
+  detectCustomerStyle,
   validateAIResponse,
   getNextTier,
   MINIMUM_ORDER_FOR_DISCOUNT,
@@ -38,6 +40,8 @@ export async function POST(request: Request) {
     })
 
     const intent = classifyUserIntent(message)
+    const style = detectCustomerStyle(message)
+    const styleInstruction = buildStyleInstruction(style)
     console.log('[AshirahBot] Intent:', intent, '| message:', message)
     let aiMessage: string
 
@@ -56,10 +60,10 @@ export async function POST(request: Request) {
       const discount = getDiscountPercent(session.currentTier)
       const total = getTotalPrice(session)
 
-      const acceptSystemPrompt = buildSystemPrompt(session) + `\n\nCustomer SETUJU dengan harga yang ditawarkan. Konfirmasi kesepakatan dengan ramah, sebutkan harga final yang sudah disepakati, dan terima kasih customer. Jangan tawarkan harga lebih rendah.`
+      const acceptSystemPrompt = buildSystemPrompt(session, style) + `\n\nCustomer SETUJU dengan harga yang ditawarkan. Konfirmasi kesepakatan dengan ramah, sebutkan harga final yang sudah disepakati, dan terima kasih customer. Jangan tawarkan harga lebih rendah.`
 
       try {
-        const response = await generateNegotiationResponse(acceptSystemPrompt, message)
+        const response = await generateNegotiationResponse(acceptSystemPrompt, message, 'accept')
         aiMessage = validateAIResponse(response, session)
       } catch (error) {
         console.error('[AshirahBot] ACCEPT branch Groq FAILED:', error)
@@ -101,6 +105,7 @@ export async function POST(request: Request) {
       if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
         rejectSystemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
 GAYA BAHASA: Santai, ramah, kasual seperti CS distro. Sapa pakai "Kak". Emoji secukupnya.
+${styleInstruction}
 JANGAN PERNAH menyebutkan kode warna hex kepada customer. Selalu sebut nama warnanya.
 
 Customer ${session.quantity} pcs menolak harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
@@ -111,6 +116,7 @@ Total: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
       } else if (session.currentTier < 3) {
         rejectSystemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
 GAYA BAHASA: Santai, ramah, kasual seperti CS distro. Sapa pakai "Kak". Emoji secukupnya.
+${styleInstruction}
 JANGAN PERNAH menyebutkan kode warna hex kepada customer. Selalu sebut nama warnanya.
 
 Customer menolak tawaran sebelumnya. Kamu sekarang menawarkan harga yang lebih baik!
@@ -123,6 +129,7 @@ Tawarkan harga baru dengan antusias, jelaskan bahwa ini harga lebih baik. Tunjuk
       } else {
         rejectSystemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
 GAYA BAHASA: Santai, ramah, kasual seperti CS distro. Sapa pakai "Kak". Emoji secukupnya.
+${styleInstruction}
 JANGAN PERNAH menyebutkan kode warna hex kepada customer. Selalu sebut nama warnanya.
 
 Customer menolak tawaran, tapi kamu sudah di diskon maksimal ${discount}%.
@@ -134,7 +141,7 @@ Jelaskan dengan sopan bahwa ini sudah harga terbaik yang bisa diberikan. Tunjukk
       }
 
       try {
-        const response = await generateNegotiationResponse(rejectSystemPrompt, message)
+        const response = await generateNegotiationResponse(rejectSystemPrompt, message, 'reject')
         aiMessage = validateAIResponse(response, session)
       } catch (error) {
         console.error('[AshirahBot] REJECT branch Groq FAILED:', error)
@@ -168,10 +175,10 @@ Jelaskan dengan sopan bahwa ini sudah harga terbaik yang bisa diberikan. Tunjukk
       })
     }
 
-    const systemPrompt = buildSystemPrompt(session)
+    const systemPrompt = buildSystemPrompt(session, style)
 
     try {
-      const response = await generateNegotiationResponse(systemPrompt, message)
+      const response = await generateNegotiationResponse(systemPrompt, message, 'unknown')
       aiMessage = validateAIResponse(response, session)
     } catch (error) {
       console.error('[AshirahBot] UNKNOWN branch Groq FAILED:', error)
