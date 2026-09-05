@@ -7,6 +7,8 @@ import {
   getOfferedPrice,
   getTotalPrice,
   buildSystemPrompt,
+  buildFallbackMessage,
+  hexToColorName,
   validateAIResponse,
   MINIMUM_ORDER_FOR_DISCOUNT,
 } from '@/lib/server/negotiation-state'
@@ -82,7 +84,7 @@ GAYA BAHASA & KARAKTER:
 - JANGAN PERNAH menyebutkan kode warna hex (seperti #FFFFFF, #000000) kepada customer. Selalu terjemahkan dan sebutkan nama warnanya (misal: Putih, Hitam, Merah, Biru, dll).
 
 SITUASI:
-Customer memesan ${totalQty} pcs kaos custom (${color}).
+Customer memesan ${totalQty} pcs kaos custom (${hexToColorName(color)}).
 Pesan ${totalQty} pcs belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk mendapatkan diskon.
 Sapa customer dengan hangat, sebutkan jumlah pesanan, dan jelaskan dengan sopan bahwa minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk dapat diskon.
 Jika customer ingin diskon, sarankan untuk menambah jumlah pesanan.
@@ -101,7 +103,7 @@ GAYA BAHASA & KARAKTER:
 - JANGAN PERNAH menyebutkan kode warna hex (seperti #FFFFFF, #000000) kepada customer. Selalu terjemahkan dan sebutkan nama warnanya (misal: Putih, Hitam, Merah, Biru, dll).
 
 SITUASI:
-Customer memesan ${totalQty} pcs kaos custom (${color}).
+Customer memesan ${totalQty} pcs kaos custom (${hexToColorName(color)}).
 Kamu menawarkan diskon tier ${initialTier} sebesar ${discount}%.
 Harga spesial: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (sebelumnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs).
 Total: Rp ${totalPrice.toLocaleString('id-ID')}.
@@ -109,17 +111,13 @@ Total: Rp ${totalPrice.toLocaleString('id-ID')}.
 Sapa customer dengan hangat, sebutkan jumlah pesanan, dan langsung tawarkan harga diskon ini.`
       }
 
-      const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)')
+      const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)', 'init')
       initialMessage = validateAIResponse(greeting, session)
     } catch {
-      const unitPrice = quote.unitPrice
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
-        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan kaos custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
+        initialMessage = buildFallbackMessage(session, 'belowMinimum')
       } else {
-        const offeredPrice = getOfferedPrice(session)
-        const totalPrice = getTotalPrice(session)
-        const discount = getDiscountPercent(initialTier)
-        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan kaos custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), saya bisa kasih harga spesial Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Totalnya Rp ${totalPrice.toLocaleString('id-ID')}. Gimana kak, berminat? 😊`
+        initialMessage = `Halo! Terima kasih sudah tertarik dengan kaos custom Ashirah. Untuk pesanan ${totalQty} pcs (${hexToColorName(color)}), saya bisa kasih harga spesial Rp ${getOfferedPrice(session).toLocaleString('id-ID')}/pcs (diskon ${getDiscountPercent(initialTier)}%). Totalnya Rp ${getTotalPrice(session).toLocaleString('id-ID')}. Berminat?`
       }
     }
 
