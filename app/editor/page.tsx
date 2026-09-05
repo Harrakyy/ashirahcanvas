@@ -14,6 +14,8 @@ import { useDesignStore } from '@/store/design-store'
 import type { PriceQuote } from '@/types/pricing'
 import type { ChatMessage } from '@/types/chat'
 import type { NegotiateResponse, SessionInitResponse, SessionStatusResponse } from '@/types/api'
+import { snapshotAllZones } from '@/lib/ui/blueprint-extractor'
+import { BLUEPRINT_STORAGE_KEY } from '@/components/vendor-blueprint-modal'
 
 export default function EditorPage() {
   const router = useRouter()
@@ -289,6 +291,21 @@ export default function EditorPage() {
     setZoomLevel(prev => Math.max(prev - 10, 50))
   }
 
+  const persistBlueprint = () => {
+    try {
+      sessionStorage.setItem(BLUEPRINT_STORAGE_KEY, JSON.stringify(snapshotAllZones()))
+    } catch (error) {
+      // Base64 images can exceed browser storage quota. Do not block checkout.
+      // Avoid showing a stale blueprint from an earlier checkout on the success page.
+      try {
+        sessionStorage.removeItem(BLUEPRINT_STORAGE_KEY)
+      } catch {
+        // Storage may be unavailable; checkout can still continue safely.
+      }
+      console.warn('[blueprint] Snapshot could not be saved:', error)
+    }
+  }
+
   const handlePayment = async () => {
     if (!sessionId || agreedDiscount === null || isProcessingPayment) return
 
@@ -316,6 +333,7 @@ export default function EditorPage() {
       snap.pay(token, {
         onSuccess: (result: any) => {
           console.log('[AshirahBot] Payment success:', result)
+          persistBlueprint()
           const oid = result.order_id || orderId || ''
           router.push(`/payment/success?order_id=${encodeURIComponent(oid)}`)
         },
@@ -337,22 +355,15 @@ export default function EditorPage() {
     }
   }
 
-  // ── Take-Home Test seam: "Simulasi Checkout" ─────────────────────────
-  // Jalan pintas dev-only untuk mencapai /payment/success TANPA negosiasi AI
-  // maupun Midtrans (zero env vars), supaya fitur Vendor Blueprint bisa
-  // dirancang & diuji lebih dulu. Alur pembayaran asli (handlePayment) tetap
-  // utuh di atas; jangan ragu untuk menggabungkan keduanya saat menerapkan
-  // snapshotAllZones() di callback onSuccess snap.pay.
+  // ── Simulasi Checkout Blueprint ───────────────────────────────────────
+  // Jalur demo ini menyimpan snapshot seluruh zona ke sessionStorage sebelum
+  // berpindah ke halaman sukses. Dengan begitu modal vendor dapat dibuka dan
+  // diuji tanpa negosiasi AI, Midtrans, maupun environment variable.
   const handleSimulateCheckout = () => {
     if (isProcessingPayment) return
     setIsProcessingPayment(true)
     try {
-      // TODO (Take-Home Test Task 1 + 2): panggil snapshotAllZones() dari
-      // lib/ui/blueprint-extractor.ts SEBELUM navigasi, lalu simpan hasilnya
-      // ke sessionStorage pada key 'vendor_blueprint' (lihat konstanta
-      // BLUEPRINT_STORAGE_KEY di components/vendor-blueprint-modal.tsx).
-      // Halaman /payment/success akan membuka modal blueprint otomatis jika
-      // key tersebut berisi snapshot.
+      persistBlueprint()
       const orderId = `SIM-${Date.now()}`
       router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
     } finally {
