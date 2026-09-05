@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { getPrintAreaForZone } from "@/lib/config/print-areas";
 import { ACTIVE_ZONES, getZoneLabel } from "@/lib/config/zones";
 import { downloadZoneAssetsZip } from "@/lib/ui/zip-download";
 import type { BlueprintAsset, BlueprintSnapshot, ZoneBlueprint } from "@/types/blueprint";
@@ -56,6 +57,11 @@ function ZoneCard({
   const hasDesign = zone?.hasDesign ?? false;
   const canvasWidth = zone?.canvasWidth || 500;
   const canvasHeight = zone?.canvasHeight || 650;
+  const printArea = getPrintAreaForZone(zoneId);
+  const previewWidth = printArea?.width ?? canvasWidth;
+  const previewHeight = printArea?.height ?? canvasHeight;
+  const previewLeft = printArea?.x ?? 0;
+  const previewTop = printArea?.y ?? 0;
 
   return (
     <section
@@ -71,8 +77,9 @@ function ZoneCard({
         <p className="mt-1 text-xs text-muted-foreground">Belum ada desain</p>
       ) : (
         <div
-          className="relative aspect-[4/5] overflow-hidden rounded-md border border-dashed border-border bg-transparent"
+          className="relative aspect-[4/5] overflow-hidden rounded-md border border-dashed border-white bg-transparent"
           aria-label={`Preview ${getZoneLabel(zoneId)} without garment mockup`}
+          style={{ aspectRatio: `${previewWidth} / ${previewHeight}` }}
         >
           {hasDesign ? (
             assets.map((asset, index) => (
@@ -82,11 +89,11 @@ function ZoneCard({
                 alt={asset.name ?? `Desain ${index + 1}`}
                 className="absolute object-contain"
                 style={{
-                  left: `${(asset.left / canvasWidth) * 100}%`,
-                  top: `${(asset.top / canvasHeight) * 100}%`,
-                  width: `${((asset.width * asset.scaleX) / canvasWidth) * 100}%`,
-                  height: `${((asset.height * asset.scaleY) / canvasHeight) * 100}%`,
-                  transform: "translate(-50%, -50%) scale(1.5)",
+                  left: `${((asset.left - previewLeft) / previewWidth) * 100}%`,
+                  top: `${((asset.top - previewTop) / previewHeight) * 100}%`,
+                  width: `${((asset.width * asset.scaleX) / previewWidth) * 100}%`,
+                  height: `${((asset.height * asset.scaleY) / previewHeight) * 100}%`,
+                  transform: "translate(-50%, -50%)",
                   transformOrigin: "center",
                 }}
               />
@@ -112,6 +119,37 @@ function ZoneCard({
           >
             <Download /> {assets.length === 1 ? "Unduh aset" : `Unduh ${assets.length} aset (.ZIP)`}
           </Button>
+          {assets.length > 1 && (
+            <details className="group">
+              <summary className="cursor-pointer select-none text-center text-xs text-muted-foreground hover:text-foreground">
+                Detail & unduh aset satuan
+              </summary>
+              <div className="mt-1.5 space-y-1">
+                {assets.map((asset, index) => (
+                  <div
+                    key={`${asset.name ?? "asset"}-${index}`}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2 py-1.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">Aset {index + 1}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        x: {Math.round(asset.left)} · y: {Math.round(asset.top)} · {Math.round(asset.width * asset.scaleX)} × {Math.round(asset.height * asset.scaleY)} px
+                      </p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      aria-label={`Unduh aset ${index + 1}`}
+                      title={`Unduh aset ${index + 1}`}
+                      onClick={() => downloadAsset(asset, index)}
+                    >
+                      <Download />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </section>
@@ -134,7 +172,7 @@ export default function VendorBlueprintModal({ open, onOpenChange }: VendorBluep
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Blueprint Vendor</DialogTitle>
           <DialogDescription>
@@ -154,7 +192,7 @@ export default function VendorBlueprintModal({ open, onOpenChange }: VendorBluep
               const rowZones = row.map((zoneId) => zones.find((zone) => zone.zone === zoneId));
               const compact = !rowZones.some((zone) => zone?.hasDesign);
               return (
-                <div key={index} className="grid grid-cols-2 gap-3">
+                <div key={index} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {row.map((zoneId, zoneIndex) => (
                     <ZoneCard
                       key={zoneId}
