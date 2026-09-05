@@ -168,9 +168,10 @@ output berguna — `reasoning_effort: "none"` mengeliminasinya sepenuhnya.
 ## Contoh Log Token
 
 > **Reviewer**: berikut output `[AshirahBot] TOKEN_USAGE` dari terminal
-> `npm run dev` — 1 percakapan penuh (init → reject → unknown → accept),
+> `npm run dev` — 2 percakapan (casual 15 pcs + formal 50 pcs),
 > semua via model primary tanpa fallback trigger:
 >
+> **Percakapan 1 — casual (init → reject → unknown → accept):**
 > ```
 > [AshirahBot] Intent: (greeting) | session init
 > [AshirahBot] TOKEN_USAGE {"timestamp":"2026-09-05T19:27:02.994Z","model":"qwen/qwen3.6-27b","branch":"init","promptTokens":299,"completionTokens":143,"totalTokens":442,"source":"api_usage","latencyMs":1164}
@@ -180,6 +181,16 @@ output berguna — `reasoning_effort: "none"` mengeliminasinya sepenuhnya.
 > [AshirahBot] TOKEN_USAGE {"timestamp":"2026-09-05T19:27:30.424Z","model":"qwen/qwen3.6-27b","branch":"unknown","promptTokens":874,"completionTokens":65,"totalTokens":939,"source":"api_usage","latencyMs":615}
 > [AshirahBot] Intent: ACCEPT | message: oalah oke deh bro
 > [AshirahBot] TOKEN_USAGE {"timestamp":"2026-09-05T19:27:43.322Z","model":"qwen/qwen3.6-27b","branch":"accept","promptTokens":930,"completionTokens":35,"totalTokens":965,"source":"api_usage","latencyMs":612}
+> ```
+>
+> **Percakapan 2 — formal (init → unknown → accept):**
+> ```
+> [AshirahBot] Intent: (greeting) | session init
+> [AshirahBot] TOKEN_USAGE {"timestamp":"2026-09-05T19:52:45.194Z","model":"qwen/qwen3.6-27b","branch":"init","promptTokens":299,"completionTokens":119,"totalTokens":418,"source":"api_usage","latencyMs":938}
+> [AshirahBot] Intent: UNKNOWN | message: selamat siang, apakah ada kemungkinan penyesuaian harga mengingat jumlah pesanan yang cukup besar untuk acara perusahaan kami
+> [AshirahBot] TOKEN_USAGE {"timestamp":"2026-09-05T19:52:52.152Z","model":"qwen/qwen3.6-27b","branch":"unknown","promptTokens":911,"completionTokens":102,"totalTokens":1013,"source":"api_usage","latencyMs":833}
+> [AshirahBot] Intent: ACCEPT | message: baik, saya setuju dengan harga tersebut. bisa lanjut proses pemesanan
+> [AshirahBot] TOKEN_USAGE {"timestamp":"2026-09-05T19:52:58.794Z","model":"qwen/qwen3.6-27b","branch":"accept","promptTokens":919,"completionTokens":74,"totalTokens":993,"source":"api_usage","latencyMs":711}
 > ```
 
 ---
@@ -212,13 +223,15 @@ langsung (productId `1` Premium Cotton T-Shirt, warna `#FFFFFF`/Putih).
 | Step | Branch | Pesan User | Respons Bot (real) | Harga | Diskon |
 |---|---|---|---|---|---|
 | 1 | `init` | *(greeting)* | "untuk 50 pcs, saya bisa kasih harga Rp 102.900/pcs (diskon 2%). Totalnya Rp 5.145.000. Gimana kak, mau lanjut?" | 102.900 | 2% |
-| 2 | `reject` | "selamat siang, apakah ada kemungkinan penyesuaian harga mengingat jumlah pesanan yang cukup besar untuk acara perusahaan kami" | "Selamat siang. Terima kasih atas ketertarikan Bapak/Ibu untuk memesan kaos custom Ashirah dalam jumlah 50 pcs. Untuk pemesanan sebanyak 50 pcs, kami telah memberikan harga terbaik sebesar Rp 102.900 per pcs (total Rp 5.145.000) dengan potongan 2%. Apakah Bapak/Ibu ingin kami lanjutkan proses pemesanan dengan harga tersebut?" | 102.900 | 2% |
+| 2 | `unknown` | "selamat siang, apakah ada kemungkinan penyesuaian harga mengingat jumlah pesanan yang cukup besar untuk acara perusahaan kami" | "Selamat siang. Terima kasih atas ketertarikan Bapak/Ibu untuk memesan kaos custom Ashirah dalam jumlah 50 pcs. Untuk pemesanan sebanyak 50 pcs, kami telah memberikan harga terbaik sebesar Rp 102.900 per pcs (total Rp 5.145.000) dengan potongan 2%. Apakah Bapak/Ibu ingin kami lanjutkan proses pemesanan dengan harga tersebut?" | 102.900 | 2% |
 | 3 | `accept` | "baik, saya setuju dengan harga tersebut. bisa lanjut proses pemesanan" | "Terima kasih atas kesepakatannya, Bapak/Ibu. Harga final untuk 50 pcs kaos custom Ashirah warna Putih adalah Rp 102.900/pcs dengan total Rp 5.145.000. Silakan kirimkan data diri dan detail desain agar kami segera memproses pesanan Anda." | 102.900 | 2% |
 
 **Adaptasi yang terlihat:**
 - Bot pakai "Bapak/Ibu" + "Anda", bahasa sopan dan terstruktur
 - Tanpa emoji (customer tidak pakai emoji)
 - Tanpa sapaan kasual "kak"/"bro"/singkatan
+- Step 2 terklasifikasi `unknown` (tidak ada keyword tolak eksplisit) sehingga
+  tier tidak naik — harga tetap 102.900, perilaku sesuai desain intent regex
 - `agreedDiscount: 2` terisi setelah ACCEPT
 
 ### Cara Uji Berbagai Branch via API
