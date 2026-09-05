@@ -8,6 +8,7 @@ import {
   classifyUserIntent,
   buildSystemPrompt,
   buildStyleInstruction,
+  buildFallbackMessage,
   detectCustomerStyle,
   validateAIResponse,
   getNextTier,
@@ -33,6 +34,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 })
     }
 
+    const history = session.messages
+      .filter((msg) => msg.role === 'user')
+      .map((msg) => msg.content)
+
     session.messages.push({
       role: 'user',
       content: message,
@@ -40,7 +45,7 @@ export async function POST(request: Request) {
     })
 
     const intent = classifyUserIntent(message)
-    const style = detectCustomerStyle(message)
+    const style = detectCustomerStyle(message, history)
     const styleInstruction = buildStyleInstruction(style)
     console.log('[AshirahBot] Intent:', intent, '| message:', message)
     let aiMessage: string
@@ -64,10 +69,10 @@ export async function POST(request: Request) {
 
       try {
         const response = await generateNegotiationResponse(acceptSystemPrompt, message, 'accept')
-        aiMessage = validateAIResponse(response, session)
+        aiMessage = validateAIResponse(response, session, style)
       } catch (error) {
         console.error('[AshirahBot] ACCEPT branch Groq FAILED:', error)
-        aiMessage = `Mantap kak! ✅ Terima kasih sudah deal ya. Untuk ${session.quantity} pcs, harga finalnya Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%), total Rp ${total.toLocaleString('id-ID')}. Pesanan akan segera kami proses! 🎉`
+        aiMessage = buildFallbackMessage(session, 'accept', style)
       }
 
       session.messages.push({
@@ -104,7 +109,7 @@ export async function POST(request: Request) {
       let rejectSystemPrompt: string
       if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
         rejectSystemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
-GAYA BAHASA: Santai, ramah, kasual seperti CS distro. Sapa pakai "Kak". Emoji secukupnya.
+GAYA BAHASA: Ikuti gaya bahasa customer sesuai blok ADAPTASI di bawah (sapaan, formalitas, emoji, panjang balasan). Jangan default ke "Kak" bila customer formal atau memakai sapaan lain.
 ${styleInstruction}
 JANGAN PERNAH menyebutkan kode warna hex kepada customer. Selalu sebut nama warnanya.
 
@@ -115,7 +120,7 @@ Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
 Total: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
       } else if (session.currentTier < 3) {
         rejectSystemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
-GAYA BAHASA: Santai, ramah, kasual seperti CS distro. Sapa pakai "Kak". Emoji secukupnya.
+GAYA BAHASA: Ikuti gaya bahasa customer sesuai blok ADAPTASI di bawah (sapaan, formalitas, emoji, panjang balasan). Jangan default ke "Kak" bila customer formal atau memakai sapaan lain.
 ${styleInstruction}
 JANGAN PERNAH menyebutkan kode warna hex kepada customer. Selalu sebut nama warnanya.
 
@@ -128,7 +133,7 @@ Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
 Tawarkan harga baru dengan antusias, jelaskan bahwa ini harga lebih baik. Tunjukkan perbandingan harga sebelum dan sesudah.`
       } else {
         rejectSystemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
-GAYA BAHASA: Santai, ramah, kasual seperti CS distro. Sapa pakai "Kak". Emoji secukupnya.
+GAYA BAHASA: Ikuti gaya bahasa customer sesuai blok ADAPTASI di bawah (sapaan, formalitas, emoji, panjang balasan). Jangan default ke "Kak" bila customer formal atau memakai sapaan lain.
 ${styleInstruction}
 JANGAN PERNAH menyebutkan kode warna hex kepada customer. Selalu sebut nama warnanya.
 
@@ -142,15 +147,15 @@ Jelaskan dengan sopan bahwa ini sudah harga terbaik yang bisa diberikan. Tunjukk
 
       try {
         const response = await generateNegotiationResponse(rejectSystemPrompt, message, 'reject')
-        aiMessage = validateAIResponse(response, session)
+        aiMessage = validateAIResponse(response, session, style)
       } catch (error) {
         console.error('[AshirahBot] REJECT branch Groq FAILED:', error)
         if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
-          aiMessage = `Maaf kak, untuk ${session.quantity} pcs, harganya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
+          aiMessage = buildFallbackMessage(session, 'belowMinimum', style)
         } else if (session.currentTier < 3) {
-          aiMessage = `Oke kak, saya kasih penawaran lebih baik nih! 😊 Untuk ${session.quantity} pcs, saya bisa kasih harga Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Totalnya Rp ${total.toLocaleString('id-ID')}. Ini lebih murah dari sebelumnya lho. Gimana kak?`
+          aiMessage = buildFallbackMessage(session, 'normalReject', style)
         } else {
-          aiMessage = `Maaf kak, untuk ${session.quantity} pcs, harga Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%) memang sudah harga terbaik yang bisa kami berikan. Totalnya Rp ${total.toLocaleString('id-ID')}. Sudah diskon ${discount}% dari harga normal Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak 🙏`
+          aiMessage = buildFallbackMessage(session, 'tierMax', style)
         }
       }
 
@@ -179,12 +184,10 @@ Jelaskan dengan sopan bahwa ini sudah harga terbaik yang bisa diberikan. Tunjukk
 
     try {
       const response = await generateNegotiationResponse(systemPrompt, message, 'unknown')
-      aiMessage = validateAIResponse(response, session)
+      aiMessage = validateAIResponse(response, session, style)
     } catch (error) {
       console.error('[AshirahBot] UNKNOWN branch Groq FAILED:', error)
-      const offeredPrice = getOfferedPrice(session)
-      const discount = getDiscountPercent(session.currentTier)
-      aiMessage = `Hmm, saya kurang penuh maksud kaknya nih 😅 Bisa diperjelas lagi? Untuk pesanan ${session.quantity} pcs, saya tawarkan harga Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Ada yang bisa saya bantu? 😊`
+      aiMessage = buildFallbackMessage(session, 'unknown', style)
     }
 
     session.messages.push({

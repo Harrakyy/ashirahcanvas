@@ -10,4 +10,10 @@ export interface CustomerStyle {
   language: 'indonesian' | 'mixed' | 'english'
   usesEmoji: boolean
   styleDescription: string
+  /**
+   * Kata sapaan persis yang dipakai customer (mis. "bro", "gan", "kak",
+   * "Bapak"). Diisi bila terdeteksi di pesan terakhir / riwayat — dipakai
+   * agar bot meniru sapaan customer, bukan selalu default "kak".
+   */
+  greetingToken?: string
 }
