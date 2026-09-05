@@ -1,146 +1,174 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { Download, ImagePlus } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { Download, ImagePlus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { ACTIVE_ZONES, getZoneLabel } from '@/lib/config/zones'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ACTIVE_ZONES, getZoneLabel } from "@/lib/config/zones";
+import { downloadZoneAssetsZip } from "@/lib/ui/zip-download";
+import type { BlueprintAsset, BlueprintSnapshot, ZoneBlueprint } from "@/types/blueprint";
+
+export const BLUEPRINT_STORAGE_KEY = "vendor_blueprint";
 
 /**
  * OWNERSHIP: Frontend
- * Cangkang (shell) modal Vendor Blueprint untuk Take-Home Test.
- *
- * Yang SUDAH disiapkan di sini:
- *  - kontrak key sessionStorage (BLUEPRINT_STORAGE_KEY) yang harus diisi
- *    snapshotAllZones() (lib/ui/blueprint-extractor.ts, Task 1) sebelum
- *    navigasi checkout,
- *  - jalur trigger: halaman /payment/success membuka modal otomatis jika key
- *    berisi snapshot; tombol "Lihat Blueprint" membukanya manual.
- *
- * Yang MENJADI TUGAS KANDIDAT (Task 2) — gantikan body modal ini:
- *  - pratinjau thumbnail visual per zona yang memiliki desain aktif,
- *  - tombol download / lihat Raw Image Asset user secara terpisah dari mockup.
- * Cangkang ini sengaja TIDAK berisi logika ekstraksi apa pun.
+ * Modal ini membaca snapshot blueprint yang telah disimpan sebelum checkout.
+ * Snapshot dirender sebagai kartu per posisi kaos, menampilkan preview aset
+ * customer tanpa mockup, lalu menyediakan unduhan satu aset atau ZIP per sisi.
  */
-export const BLUEPRINT_STORAGE_KEY = 'vendor_blueprint'
-
-interface RawAsset {
-  name: string
-  src: string
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-interface ZoneBlueprint {
-  zone: string
-  rawAssets?: RawAsset[]
-}
-
-interface BlueprintSnapshot {
-  version: string
-  productId: string
-  category: string
-  zones?: ZoneBlueprint[]
-}
+const ZONE_ROWS = [ACTIVE_ZONES.slice(0, 2), ACTIVE_ZONES.slice(2, 4)];
 
 function readSnapshot(): BlueprintSnapshot | null {
   try {
-    const raw = sessionStorage.getItem(BLUEPRINT_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as BlueprintSnapshot) : null
+    const raw = sessionStorage.getItem(BLUEPRINT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as BlueprintSnapshot) : null;
   } catch {
-    return null
+    return null;
   }
 }
 
-interface VendorBlueprintModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+function downloadAsset(asset: BlueprintAsset, index: number) {
+  const type =
+    asset.src.match(/^data:image\/([a-zA-Z0-9+.-]+)/)?.[1]?.replace("jpeg", "jpg") ?? "png";
+  const link = document.createElement("a");
+  link.href = asset.src;
+  const zona = getZoneLabel(asset.zone).toLocaleLowerCase('id-ID').replace(/\s+/g, '-');
+  link.download = `${zona}-aset-${index + 1}.${type}`;
+  link.click();
 }
 
-export default function VendorBlueprintModal({
-  open,
-  onOpenChange,
-}: VendorBlueprintModalProps) {
-  const [snapshot, setSnapshot] = useState<BlueprintSnapshot | null>(null)
+function ZoneCard({
+  zoneId,
+  zone,
+  compact = false,
+}: {
+  zoneId: string;
+  zone?: ZoneBlueprint;
+  compact?: boolean;
+}) {
+  const assets = zone?.assets ?? [];
+  const hasDesign = zone?.hasDesign ?? false;
+  const canvasWidth = zone?.canvasWidth || 500;
+  const canvasHeight = zone?.canvasHeight || 650;
 
+  return (
+    <section
+      className={`rounded-lg border border-gray-200 bg-card text-card-foreground ${compact ? "p-2" : "p-3 space-y-2"}`}
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-card-foreground">{getZoneLabel(zoneId)}</h3>
+        <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
+          {assets.length} aset
+        </span>
+      </div>
+      {compact ? (
+        <p className="mt-1 text-xs text-muted-foreground">Belum ada desain</p>
+      ) : (
+        <div
+          className="relative aspect-[4/5] overflow-hidden rounded-md border border-dashed border-border bg-transparent"
+          aria-label={`Preview ${getZoneLabel(zoneId)} without garment mockup`}
+        >
+          {hasDesign ? (
+            assets.map((asset, index) => (
+              <img
+                key={`${asset.name ?? "asset"}-${index}`}
+                src={asset.src}
+                alt={asset.name ?? `Desain ${index + 1}`}
+                className="absolute object-contain"
+                style={{
+                  left: `${(asset.left / canvasWidth) * 100}%`,
+                  top: `${(asset.top / canvasHeight) * 100}%`,
+                  width: `${((asset.width * asset.scaleX) / canvasWidth) * 100}%`,
+                  height: `${((asset.height * asset.scaleY) / canvasHeight) * 100}%`,
+                  transform: "translate(-50%, -50%) scale(1.5)",
+                  transformOrigin: "center",
+                }}
+              />
+            ))
+          ) : (
+            <p className="absolute inset-0 flex items-center justify-center text-center text-xs text-muted-foreground">
+              Belum ada desain
+            </p>
+          )}
+        </div>
+      )}
+      {hasDesign && (
+        <div className="space-y-1.5">
+          <Button
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => {
+              // Satu aset diunduh langsung; beberapa aset dibundle menjadi ZIP
+              // supaya vendor hanya menerima satu file unduhan per posisi kaos.
+              if (assets.length === 1) downloadAsset(assets[0], 0);
+              else downloadZoneAssetsZip(zoneId, assets);
+            }}
+          >
+            <Download /> {assets.length === 1 ? "Unduh aset" : `Unduh ${assets.length} aset (.ZIP)`}
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+interface VendorBlueprintModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function VendorBlueprintModal({ open, onOpenChange }: VendorBlueprintModalProps) {
+  const [snapshot, setSnapshot] = useState<BlueprintSnapshot | null>(null);
   useEffect(() => {
-    if (!open) return
-    setSnapshot(readSnapshot())
-  }, [open])
+    if (open) setSnapshot(readSnapshot());
+  }, [open]);
 
-  const zones = snapshot?.zones ?? []
-  const hasBlueprint = snapshot !== null && zones.length > 0
+  const zones = snapshot?.zones ?? [];
+  const hasSnapshot = snapshot !== null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Blueprint Vendor</DialogTitle>
           <DialogDescription>
-            Data desain untuk diproduksi konveksi. Raw asset dipisah dari
-            mockup kaos.
+            Preview desain dan asset mentah untuk produksi konveksi.
           </DialogDescription>
         </DialogHeader>
-
-        {!hasBlueprint ? (
+        {!hasSnapshot ? (
           <div className="py-10 text-center space-y-2">
-            <ImagePlus className="w-10 h-10 mx-auto text-gray-300" />
-            <p className="text-sm font-medium text-gray-700">
-              Belum ada data blueprint.
-            </p>
-            <p className="text-xs text-gray-500 max-w-xs mx-auto">
-              Implementasikan snapshotAllZones() (Task 1) dan simpan hasilnya
-              ke sessionStorage[{`"${BLUEPRINT_STORAGE_KEY}"`}] sebelum
-              checkout agar zona berdesain tampil di sini.
+            <ImagePlus className="w-10 h-10 mx-auto text-muted-foreground" />
+            <p className="text-sm font-medium text-muted-foreground">
+              Belum ada desain untuk diproduksi.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {ACTIVE_ZONES.map(zoneId => {
-              const zoneBlueprint = zones.find(z => z.zone === zoneId)
-              const assetCount = zoneBlueprint?.rawAssets?.length ?? 0
+          <div className="space-y-3">
+            {ZONE_ROWS.map((row, index) => {
+              const rowZones = row.map((zoneId) => zones.find((zone) => zone.zone === zoneId));
+              const compact = !rowZones.some((zone) => zone?.hasDesign);
               return (
-                <div
-                  key={zoneId}
-                  className="rounded-lg border border-gray-200 p-3 space-y-2"
-                >
-                  <p className="text-sm font-semibold text-gray-900">
-                    {getZoneLabel(zoneId)}
-                  </p>
-                  {assetCount > 0 ? (
-                    <>
-                      <p className="text-xs text-gray-500">
-                        {assetCount} desain aktif
-                      </p>
-                      {/* TODO (Task 2): thumbnail visual zona + tombol
-                          download raw asset (ganti tombol placeholder ini) */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full"
-                        disabled
-                      >
-                        <Download />
-                        Raw Asset
-                      </Button>
-                    </>
-                  ) : (
-                    <p className="text-xs text-gray-400">Tidak ada desain</p>
-                  )}
+                <div key={index} className="grid grid-cols-2 gap-3">
+                  {row.map((zoneId, zoneIndex) => (
+                    <ZoneCard
+                      key={zoneId}
+                      zoneId={zoneId}
+                      zone={rowZones[zoneIndex]}
+                      compact={compact}
+                    />
+                  ))}
                 </div>
-              )
+              );
             })}
           </div>
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }
