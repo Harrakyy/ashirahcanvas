@@ -56,7 +56,7 @@ async function callGroq(
         ],
         model: modelName,
         temperature: 0.7,
-        max_tokens: 300,
+        max_tokens: 450,
       })
       const latencyMs = Date.now() - startMs
       const text = completion.choices[0]?.message?.content || ''

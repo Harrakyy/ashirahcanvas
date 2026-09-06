@@ -75,28 +75,15 @@ export async function POST(request: Request) {
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
         systemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA BAHASA: Santai, ramah, kasual. Sapa pakai "Kak". Gunakan emoji secukupnya.
-
-SITUASI:
-Customer memesan ${totalQty} pcs kaos custom (${color}).
-Pesan ${totalQty} pcs belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk mendapatkan diskon.
-Sapa customer dengan hangat, sebutkan jumlah pesanan, dan jelaskan dengan sopan syarat minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs.
-Jika customer ingin diskon, sarankan untuk menambah jumlah pesanan.
-
-INFO HARGA:
-- Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
-- Total: Rp ${(unitPrice * totalQty).toLocaleString('id-ID')}.`
+SITUASI: Customer baru buka chat untuk negosiasi harga kaos custom. Mereka belum order — masih mau diskusi harga.
+Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan kaos custom Ashirah + emoji, lalu tanya ada yang bisa dibantu + emoji.
+Jangan bilang "selamat datang". Jangan sebut syarat diskon dulu. Maksimal 2 kalimat.`
       } else {
         systemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA BAHASA: Santai, ramah, kasual. Sapa pakai "Kak". Gunakan emoji secukupnya.
-
-SITUASI:
-Customer memesan ${totalQty} pcs kaos custom (${color}).
-Kamu menawarkan diskon tier ${initialTier} sebesar ${discount}%.
-Harga spesial: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (sebelumnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs).
-Total: Rp ${totalPrice.toLocaleString('id-ID')}.
-Sapa customer dengan hangat dan langsung tawarkan harga diskon ini.`
+SITUASI: Customer baru buka chat untuk negosiasi harga kaos custom. Mereka belum order — masih mau diskusi harga.
+Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan kaos custom Ashirah + emoji, lalu sebut sudah ada harga spesial Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%) + emoji.
+Jangan bilang "selamat datang". Maksimal 2 kalimat.`
       }
 
       const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)', 'init')

@@ -107,10 +107,11 @@ export async function POST(request: Request) {
 
 GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Boleh pakai emoji.' : 'Minimal emoji.'}
 
-SITUASI: Customer ${session.quantity} pcs menolak harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
-Pesanan belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk diskon.
-Jelaskan dengan sopan syarat minimum. Sarankan tambah quantity.
-Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
+SITUASI: Customer ${session.quantity} pcs minta harga lebih murah.
+Harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs memang tidak bisa dikurangi karena belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk diskon.
+Sampaikan dengan lembut bahwa kalau mau diskon, bisa tambah quantity sampai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs.
+Jangan bertanya balik. Sampaikan informasinya sebagai penjelasan yang hangat, bukan pertanyaan.
+Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total sekarang: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
       } else if (session.currentTier < 3) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
@@ -124,12 +125,17 @@ Tawarkan harga baru dengan antusias dan tunjukkan perbandingan harga.`
       } else {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Boleh pakai emoji.' : 'Minimal emoji.'}
+GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Gunakan emoji di setiap akhir kalimat.' : 'Minimal emoji.'}
 
-SITUASI: Customer menolak tawaran, tapi sudah di diskon maksimal ${discount}%.
+SITUASI: Customer keberatan dengan harga, tapi diskon sudah maksimal ${discount}%.
 Harga: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total: Rp ${total.toLocaleString('id-ID')}.
 Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
-Jelaskan dengan sopan ini sudah harga terbaik. Tunjukkan nilai yang didapat. Jangan tawarkan lebih rendah.`
+
+Respons harus sesuai dengan pertanyaan/keluhan spesifik customer — jangan copy-paste jawaban sebelumnya.
+Kalau customer tanya "kenapa tidak bisa kurang" → jelaskan alasannya (sudah diskon maksimal dari harga normal).
+Kalau customer bilang "masih mahal" → akui dengan empati, tunjukkan nilai yang didapat dari harga ini.
+Kalau customer minta diskon lebih dari ${discount}% → tolak dengan sopan, jelaskan batas maksimal.
+Jangan tawarkan harga lebih rendah dari Rp ${offeredPrice.toLocaleString('id-ID')}/pcs.`
       }
 
       try {
