@@ -259,11 +259,20 @@ Harga yang ditawarkan: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs.
 Total untuk ${session.quantity} pcs: Rp ${totalPrice.toLocaleString('id-ID')}.
 Harga normal tanpa diskon: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.`
 
+  // Referensi tier pricing untuk menjawab pertanyaan customer tentang quantity lain
+  const tierPricingRef = `
+REFERENSI TIER HARGA (gunakan jika customer tanya harga di quantity lain):
+- 1-11 pcs: Rp ${unitPrice.toLocaleString('id-ID')}/pcs (tanpa diskon)
+- 12-23 pcs: Rp ${Math.round(unitPrice * 0.98).toLocaleString('id-ID')}/pcs (diskon 2%)
+- 24-47 pcs: Rp ${Math.round(unitPrice * 0.95).toLocaleString('id-ID')}/pcs (diskon 5%)
+- 48+ pcs: Rp ${Math.round(unitPrice * 0.93).toLocaleString('id-ID')}/pcs (diskon 7%)`
+
   return `${BASE_PERSONA_PROMPT}
 
 GAYA BAHASA (sesuaikan dengan customer ini):
 ${styleInstruction}
 - Gunakan emoji di setiap akhir kalimat agar terasa hangat dan akrab.
+${tierPricingRef}
 
 ATURAN HARGA (TIDAK BOLEH DILANGGAR):
 - JANGAN pernah menyebut diskon lebih dari ${currentDiscount}%
@@ -271,7 +280,7 @@ ATURAN HARGA (TIDAK BOLEH DILANGGAR):
 - Jika customer minta harga lebih rendah, tolak dengan sopan dan jelaskan ini sudah harga terbaik
 
 INFO PRODUK:
-- Produk: Kaos Custom Ashirah
+- Produk: ${session.category} Custom Ashirah
 - Quantity: ${session.quantity} pcs
 - Warna: ${session.color}
 

@@ -75,14 +75,14 @@ export async function POST(request: Request) {
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
         systemPrompt = `${BASE_PERSONA_PROMPT}
 
-SITUASI: Customer baru buka chat untuk negosiasi harga kaos custom. Mereka belum order — masih mau diskusi harga.
-Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan kaos custom Ashirah + emoji, lalu tanya ada yang bisa dibantu + emoji.
+SITUASI: Customer baru buka chat untuk negosiasi harga ${category.toLowerCase()} custom. Mereka belum order — masih mau diskusi harga.
+Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah + emoji, lalu tanya ada yang bisa dibantu + emoji.
 Jangan bilang "selamat datang". Jangan sebut syarat diskon dulu. Maksimal 2 kalimat.`
       } else {
         systemPrompt = `${BASE_PERSONA_PROMPT}
 
-SITUASI: Customer baru buka chat untuk negosiasi harga kaos custom. Mereka belum order — masih mau diskusi harga.
-Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan kaos custom Ashirah + emoji, lalu sebut sudah ada harga spesial Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%) + emoji.
+SITUASI: Customer baru buka chat untuk negosiasi harga ${category.toLowerCase()} custom. Mereka belum order — masih mau diskusi harga.
+Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah + emoji, lalu sebut sudah ada harga spesial Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%) + emoji.
 Jangan bilang "selamat datang". Maksimal 2 kalimat.`
       }
 
@@ -91,12 +91,12 @@ Jangan bilang "selamat datang". Maksimal 2 kalimat.`
     } catch {
       const unitPrice = quote.unitPrice
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
-        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan kaos custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
+        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
       } else {
         const offeredPrice = getOfferedPrice(session)
         const totalPrice = getTotalPrice(session)
         const discount = getDiscountPercent(initialTier)
-        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan kaos custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), saya bisa kasih harga spesial Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Totalnya Rp ${totalPrice.toLocaleString('id-ID')}. Gimana kak, berminat? 😊`
+        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), saya bisa kasih harga spesial Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Totalnya Rp ${totalPrice.toLocaleString('id-ID')}. Gimana kak, berminat? 😊`
       }
     }
 
