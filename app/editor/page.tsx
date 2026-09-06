@@ -11,9 +11,29 @@ import MobileBottomNav from '@/components/mobile-bottom-nav'
 import MobileLeftPanelSheet from '@/components/mobile-left-panel-sheet'
 import MobileRightPanelSheet from '@/components/mobile-right-panel-sheet'
 import { useDesignStore } from '@/store/design-store'
+import { BLUEPRINT_STORAGE_KEY } from '@/components/vendor-blueprint-modal'
+import { snapshotAllZones, stripAssetSources } from '@/lib/ui/blueprint-extractor'
 import type { PriceQuote } from '@/types/pricing'
 import type { ChatMessage } from '@/types/chat'
 import type { NegotiateResponse, SessionInitResponse, SessionStatusResponse } from '@/types/api'
+
+function persistBlueprintSnapshot(): void {
+  const snapshot = snapshotAllZones()
+  try {
+    sessionStorage.setItem(BLUEPRINT_STORAGE_KEY, JSON.stringify(snapshot))
+    return
+  } catch {
+    console.warn('[Blueprint] Snapshot penuh, menyimpan tanpa raw asset')
+  }
+  try {
+    sessionStorage.setItem(
+      BLUEPRINT_STORAGE_KEY,
+      JSON.stringify(stripAssetSources(snapshot))
+    )
+  } catch {
+    console.warn('[Blueprint] Snapshot gagal disimpan ke sessionStorage')
+  }
+}
 
 export default function EditorPage() {
   const router = useRouter()
@@ -316,11 +336,13 @@ export default function EditorPage() {
       snap.pay(token, {
         onSuccess: (result: any) => {
           console.log('[AshirahBot] Payment success:', result)
+          persistBlueprintSnapshot()
           const oid = result.order_id || orderId || ''
           router.push(`/payment/success?order_id=${encodeURIComponent(oid)}`)
         },
         onPending: (result: any) => {
           console.log('[AshirahBot] Payment pending:', result)
+          persistBlueprintSnapshot()
           const oid = result.order_id || orderId || ''
           router.push(`/payment/success?order_id=${encodeURIComponent(oid)}`)
         },
@@ -347,12 +369,7 @@ export default function EditorPage() {
     if (isProcessingPayment) return
     setIsProcessingPayment(true)
     try {
-      // TODO (Take-Home Test Task 1 + 2): panggil snapshotAllZones() dari
-      // lib/ui/blueprint-extractor.ts SEBELUM navigasi, lalu simpan hasilnya
-      // ke sessionStorage pada key 'vendor_blueprint' (lihat konstanta
-      // BLUEPRINT_STORAGE_KEY di components/vendor-blueprint-modal.tsx).
-      // Halaman /payment/success akan membuka modal blueprint otomatis jika
-      // key tersebut berisi snapshot.
+      persistBlueprintSnapshot()
       const orderId = `SIM-${Date.now()}`
       router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
     } finally {
