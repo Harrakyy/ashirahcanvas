@@ -252,42 +252,20 @@ export function buildSystemPrompt(session: NegotiationSession): string {
   const style = detectCustomerStyle(session)
   const styleInstruction = buildStyleInstruction(style)
 
-  const tierInfo = session.quantity < MINIMUM_ORDER_FOR_DISCOUNT
-    ? `Customer hanya memesan ${session.quantity} pcs. Minimum untuk diskon adalah ${MINIMUM_ORDER_FOR_DISCOUNT} pcs. Jika customer minta diskon, jelaskan syarat minimum ini dengan sopan.`
-    : `Tier diskon saat ini: ${currentDiscount}% (${session.currentTier}/3).
-Harga yang ditawarkan: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs.
-Total untuk ${session.quantity} pcs: Rp ${totalPrice.toLocaleString('id-ID')}.
-Harga normal tanpa diskon: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.`
+  // Compact tier pricing reference (all quantities)
+  const tierPrices = `HARGA: 1-11pcs=Rp${unitPrice.toLocaleString('id-ID')}(0%), 12-23pcs=Rp${Math.round(unitPrice * 0.98).toLocaleString('id-ID')}(2%), 24-47pcs=Rp${Math.round(unitPrice * 0.95).toLocaleString('id-ID')}(5%), 48+pcs=Rp${Math.round(unitPrice * 0.93).toLocaleString('id-ID')}(7%)`
 
-  // Referensi tier pricing untuk menjawab pertanyaan customer tentang quantity lain
-  const tierPricingRef = `
-REFERENSI TIER HARGA (gunakan jika customer tanya harga di quantity lain):
-- 1-11 pcs: Rp ${unitPrice.toLocaleString('id-ID')}/pcs (tanpa diskon)
-- 12-23 pcs: Rp ${Math.round(unitPrice * 0.98).toLocaleString('id-ID')}/pcs (diskon 2%)
-- 24-47 pcs: Rp ${Math.round(unitPrice * 0.95).toLocaleString('id-ID')}/pcs (diskon 5%)
-- 48+ pcs: Rp ${Math.round(unitPrice * 0.93).toLocaleString('id-ID')}/pcs (diskon 7%)`
+  // Current session info - compact
+  const sessionInfo = session.quantity < MINIMUM_ORDER_FOR_DISCOUNT
+    ? `ORDER: ${session.quantity}pcs ${session.category} ${session.color}, Rp${unitPrice.toLocaleString('id-ID')}/pcs (belum dapat diskon, min ${MINIMUM_ORDER_FOR_DISCOUNT}pcs)`
+    : `ORDER: ${session.quantity}pcs ${session.category} ${session.color}, Rp${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${currentDiscount}%), total Rp${totalPrice.toLocaleString('id-ID')}`
 
   return `${BASE_PERSONA_PROMPT}
-
-GAYA BAHASA (sesuaikan dengan customer ini):
-${styleInstruction}
-- Gunakan emoji di setiap akhir kalimat agar terasa hangat dan akrab.
-${tierPricingRef}
-
-ATURAN HARGA (TIDAK BOLEH DILANGGAR):
-- JANGAN pernah menyebut diskon lebih dari ${currentDiscount}%
-- JANGAN pernah menawarkan harga lebih rendah dari Rp ${offeredPrice.toLocaleString('id-ID')}/pcs
-- Jika customer minta harga lebih rendah, tolak dengan sopan dan jelaskan ini sudah harga terbaik
-
-INFO PRODUK:
-- Produk: ${session.category} Custom Ashirah
-- Quantity: ${session.quantity} pcs
-- Warna: ${session.color}
-
-INFO HARGA:
-${tierInfo}
-
-Berikan respons yang natural dan ramah. Selalu sertakan harga spesifik dalam respons.`
+${styleInstruction} Emoji tiap akhir kalimat.
+${tierPrices}
+${sessionInfo}
+BATAS: Max diskon=${currentDiscount}%, min harga=Rp${offeredPrice.toLocaleString('id-ID')}/pcs. Tolak sopan jika minta lebih murah.
+FORMAT: 2-3 kalimat pendek, langsung jawab, sertakan harga spesifik.`
 }
 
 export function validateAIResponse(
