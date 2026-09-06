@@ -9,6 +9,7 @@ import {
   buildSystemPrompt,
   validateAIResponse,
   MINIMUM_ORDER_FOR_DISCOUNT,
+  BASE_PERSONA_PROMPT,
 } from '@/lib/server/negotiation-state'
 import { getProductById } from '@/lib/config/products'
 import { buildPriceQuote } from '@/lib/server/pricing'
@@ -72,44 +73,33 @@ export async function POST(request: Request) {
 
       let systemPrompt: string
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
-        systemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
+        systemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA BAHASA & KARAKTER:
-- Gunakan bahasa Indonesia yang santai, ramah, komunikatif, dan kasual (seperti customer service distro/brand apparel lokal yang modern, bukan formal kaku seperti bank).
-- Gunakan sapaan yang akrab seperti "Kak" atau "Kakak".
-- Hindari kalimat teoretis, panjang lebar, atau terlalu formal. Jawab langsung to the point, ramah, dan solutif.
-- Gunakan emoji secukupnya (tidak berlebihan).
-- JANGAN PERNAH menyebutkan kode warna hex (seperti #FFFFFF, #000000) kepada customer. Selalu terjemahkan dan sebutkan nama warnanya (misal: Putih, Hitam, Merah, Biru, dll).
+GAYA BAHASA: Santai, ramah, kasual. Sapa pakai "Kak". Gunakan emoji secukupnya.
 
 SITUASI:
 Customer memesan ${totalQty} pcs kaos custom (${color}).
 Pesan ${totalQty} pcs belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk mendapatkan diskon.
-Sapa customer dengan hangat, sebutkan jumlah pesanan, dan jelaskan dengan sopan bahwa minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk dapat diskon.
+Sapa customer dengan hangat, sebutkan jumlah pesanan, dan jelaskan dengan sopan syarat minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs.
 Jika customer ingin diskon, sarankan untuk menambah jumlah pesanan.
 
 INFO HARGA:
 - Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
 - Total: Rp ${(unitPrice * totalQty).toLocaleString('id-ID')}.`
       } else {
-        systemPrompt = `Kamu adalah AshirahBot, asisten virtual resmi dari Ashirah Group (ashiragroup.id).
+        systemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA BAHASA & KARAKTER:
-- Gunakan bahasa Indonesia yang santai, ramah, komunikatif, dan kasual (seperti customer service distro/brand apparel lokal yang modern, bukan formal kaku seperti bank).
-- Gunakan sapaan yang akrab seperti "Kak" atau "Kakak".
-- Hindari kalimat teoretis, panjang lebar, atau terlalu formal. Jawab langsung to the point, ramah, dan solutif.
-- Gunakan emoji secukupnya (tidak berlebihan).
-- JANGAN PERNAH menyebutkan kode warna hex (seperti #FFFFFF, #000000) kepada customer. Selalu terjemahkan dan sebutkan nama warnanya (misal: Putih, Hitam, Merah, Biru, dll).
+GAYA BAHASA: Santai, ramah, kasual. Sapa pakai "Kak". Gunakan emoji secukupnya.
 
 SITUASI:
 Customer memesan ${totalQty} pcs kaos custom (${color}).
 Kamu menawarkan diskon tier ${initialTier} sebesar ${discount}%.
 Harga spesial: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (sebelumnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs).
 Total: Rp ${totalPrice.toLocaleString('id-ID')}.
-
-Sapa customer dengan hangat, sebutkan jumlah pesanan, dan langsung tawarkan harga diskon ini.`
+Sapa customer dengan hangat dan langsung tawarkan harga diskon ini.`
       }
 
-      const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)')
+      const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)', 'init')
       initialMessage = validateAIResponse(greeting, session)
     } catch {
       const unitPrice = quote.unitPrice

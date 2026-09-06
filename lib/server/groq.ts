@@ -5,11 +5,12 @@
  * Lihat ARCHITECTURE.md section C.
  */
 import Groq from 'groq-sdk'
+import type { TokenLog } from '@/types/negotiation'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-const GROQ_PRIMARY_MODEL = 'llama-3.3-70b-versatile'
-const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant'
+const GROQ_PRIMARY_MODEL = 'openai/gpt-oss-120b'
+const GROQ_FALLBACK_MODEL = 'openai/gpt-oss-20b'
 const MAX_RETRIES = 3
 const BASE_DELAY_MS = 1000
 
@@ -21,13 +22,32 @@ function getErrorStatus(error: unknown): number | undefined {
   return (error as { status?: number })?.status
 }
 
+/**
+ * Estimator fallback: ~4 karakter per token untuk teks Indonesia/Inggris campuran.
+ * Dipakai hanya ketika completion.usage tidak tersedia.
+ */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
+function logTokenUsage(log: TokenLog): void {
+  console.log(
+    `[AshirahBot] TOKEN | model: ${log.model} | branch: ${log.branch} | ` +
+    `prompt: ${log.promptTokens} | completion: ${log.completionTokens} | ` +
+    `total: ${log.totalTokens} | source: ${log.source} | ` +
+    `latency: ${log.latencyMs}ms | ts: ${log.timestamp}`
+  )
+}
+
 async function callGroq(
   modelName: string,
   systemPrompt: string,
-  userMessage: string
+  userMessage: string,
+  branch: TokenLog['branch']
 ): Promise<string> {
   let lastError: unknown
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const startMs = Date.now()
     try {
       const completion = await groq.chat.completions.create({
         messages: [
@@ -38,7 +58,23 @@ async function callGroq(
         temperature: 0.7,
         max_tokens: 300,
       })
+      const latencyMs = Date.now() - startMs
       const text = completion.choices[0]?.message?.content || ''
+
+      const usage = completion.usage
+      const hasUsage = usage != null
+      const tokenLog: TokenLog = {
+        timestamp: new Date().toISOString(),
+        model: modelName,
+        branch,
+        promptTokens: hasUsage ? usage.prompt_tokens : estimateTokens(systemPrompt + userMessage),
+        completionTokens: hasUsage ? usage.completion_tokens : estimateTokens(text),
+        totalTokens: hasUsage ? usage.total_tokens : estimateTokens(systemPrompt + userMessage + text),
+        source: hasUsage ? 'api_usage' : 'estimated',
+        latencyMs,
+      }
+      logTokenUsage(tokenLog)
+
       console.log('[AshirahBot] Groq OK | model:', modelName, '| attempt:', attempt, '| length:', text.length)
       return text
     } catch (error) {
@@ -66,19 +102,20 @@ async function callGroq(
 
 export async function generateNegotiationResponse(
   systemPrompt: string,
-  userMessage: string
+  userMessage: string,
+  branch: TokenLog['branch'] = 'unknown'
 ): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY
   console.log('[AshirahBot] Groq call | primary:', GROQ_PRIMARY_MODEL, '| fallback:', GROQ_FALLBACK_MODEL, '| key present:', !!apiKey)
 
   try {
-    return await callGroq(GROQ_PRIMARY_MODEL, systemPrompt, userMessage)
+    return await callGroq(GROQ_PRIMARY_MODEL, systemPrompt, userMessage, branch)
   } catch (primaryError) {
     const status = getErrorStatus(primaryError)
     if (status === 404) {
       console.warn(`[AshirahBot] Primary model ${GROQ_PRIMARY_MODEL} unavailable (404), trying fallback: ${GROQ_FALLBACK_MODEL}`)
       try {
-        return await callGroq(GROQ_FALLBACK_MODEL, systemPrompt, userMessage)
+        return await callGroq(GROQ_FALLBACK_MODEL, systemPrompt, userMessage, branch)
       } catch (fallbackError) {
         console.error(`[AshirahBot] Fallback model ${GROQ_FALLBACK_MODEL} also failed:`, fallbackError)
         throw fallbackError
