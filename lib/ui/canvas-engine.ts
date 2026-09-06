@@ -152,7 +152,7 @@ interface SerializableObject {
   [key: string]: unknown
 }
 
-function serializeUserObjects(canvas: Canvas): string {
+export function serializeUserObjects(canvas: Canvas): string {
   const json = canvas.toObject([...USER_PROPERTIES] as any) as {
     objects?: SerializableObject[]
   }
@@ -292,7 +292,7 @@ export function isDebugOverlayActive(): boolean {
 // Per-zone target box (on-canvas px) that the garment should fit within,
 // centered. These mirror the black variant's footprint (the "pas" reference)
 // so every color & zone renders the garment at a consistent relative size.
-const GARMENT_TARGET_BOX_BY_ZONE: Record<string, { width: number; height: number }> = {
+export const GARMENT_TARGET_BOX_BY_ZONE: Record<string, { width: number; height: number }> = {
   front: { width: 398, height: 513 },
   back: { width: 358, height: 503 },
   left: { width: 196, height: 555 },
