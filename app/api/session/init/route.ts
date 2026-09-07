@@ -3,10 +3,7 @@ import { createSession } from '@/lib/server/session-store'
 import { generateNegotiationResponse } from '@/lib/server/groq'
 import {
   getInitialTier,
-  getDiscountPercent,
   getOfferedPrice,
-  getTotalPrice,
-  buildSystemPrompt,
   validateAIResponse,
   MINIMUM_ORDER_FOR_DISCOUNT,
   BASE_PERSONA_PROMPT,
@@ -66,11 +63,6 @@ export async function POST(request: Request) {
     let initialMessage: string
 
     try {
-      const unitPrice = quote.unitPrice
-      const discount = getDiscountPercent(initialTier)
-      const offeredPrice = getOfferedPrice(session)
-      const totalPrice = getTotalPrice(session)
-
       let systemPrompt: string
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
         systemPrompt = `${BASE_PERSONA_PROMPT}
@@ -93,9 +85,6 @@ Jangan bilang "selamat datang". Jangan sebut diskon atau harga dulu. Maksimal 2 
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
         initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
       } else {
-        const offeredPrice = getOfferedPrice(session)
-        const totalPrice = getTotalPrice(session)
-        const discount = getDiscountPercent(initialTier)
         initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Ada yang bisa dibantu kak? 😊`
       }
     }
