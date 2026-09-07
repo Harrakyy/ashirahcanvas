@@ -17,28 +17,12 @@ export const DISCOUNT_TIERS = [
 export const MINIMUM_ORDER_FOR_DISCOUNT = 12
 
 export function getInitialTier(quantity: number): 0 | 1 | 2 | 3 {
-  // Awalnya semua customer mulai dari tier 0 (tanpa diskon)
-  // Diskon baru diberikan setelah customer bertanya/minta
-  return 0
+  if (quantity < MINIMUM_ORDER_FOR_DISCOUNT) return 0
+  return 1
 }
 
-/**
- * Batas maksimum tier berdasarkan qty
- * - 1-11 pcs: max tier 0 (tidak bisa dapat diskon)
- * - 12-23 pcs: max tier 1 (2%)
- * - 24-47 pcs: max tier 2 (5%)
- * - 48+ pcs: max tier 3 (7%)
- */
-export function getMaxTierForQty(quantity: number): 0 | 1 | 2 | 3 {
-  if (quantity >= 48) return 3
-  if (quantity >= 24) return 2
-  if (quantity >= 12) return 1
-  return 0
-}
-
-export function getNextTier(currentTier: number, quantity: number): number {
-  const maxTier = getMaxTierForQty(quantity)
-  if (currentTier >= maxTier) return maxTier
+export function getNextTier(currentTier: number): number {
+  if (currentTier >= 3) return 3
   return currentTier + 1
 }
 
@@ -88,11 +72,6 @@ export function detectCustomerStyle(session: NegotiationSession): CustomerStyle 
     /\bperkenankan\b/i,
     /\bterima\s+kasih\s+atas\b/i,
     /\bsaya\s+ingin\s+menanyakan\b/i,
-    /\bsaya\s+  mau\s+tanya\b/i,
-    /\bapakah\s+ada\s+kemungkinan\b/i,
-    /\bmengingat\b/i,
-    /\bberencana\b/i,
-    /\bmengenai\b/i,
   ]
 
   const emojiRegex = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u
@@ -132,9 +111,9 @@ function buildStyleInstruction(style: CustomerStyle): string {
   }
 
   if (style.isFormal) {
-    lines.push('- Customer pakai bahasa FORMAL. Balas sopan, terstruktur. Emoji formal saja (🙏). Jangan singkatan. Balas sapaan jika disapa.')
+    lines.push('- Customer pakai bahasa formal. Ikutin — sopan, terstruktur, kurangi singkatan dan emoji.')
   } else {
-    lines.push('- Customer santai. Balas kayak ngobrol biasa — boleh "udah", "nih", "kak", "yuk", emoji santai (😊🙌👍), dll.')
+    lines.push('- Customer santai. Balas kayak ngobrol biasa — boleh "udah", "nih", "kak", "yuk", dll.')
   }
 
   if (style.usesEmoji) {
@@ -274,21 +253,20 @@ export function buildSystemPrompt(session: NegotiationSession): string {
   const style = detectCustomerStyle(session)
   const styleInstruction = buildStyleInstruction(style)
 
-  // Current session info - compact, HANYA info qty ini, tidak sebut tier lain
-  const sessionInfo = session.quantity < MINIMUM_ORDER_FOR_DISCOUNT
-    ? `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${unitPrice.toLocaleString('id-ID')}/pcs. Belum dapat diskon (min ${MINIMUM_ORDER_FOR_DISCOUNT}pcs).`
-    : `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${currentDiscount}%), total Rp${totalPrice.toLocaleString('id-ID')}.`
+  // Compact tier pricing reference (all quantities)
+  const tierPrices = `HARGA: 1-11pcs=Rp${unitPrice.toLocaleString('id-ID')}(0%), 12-23pcs=Rp${Math.round(unitPrice * 0.98).toLocaleString('id-ID')}(2%), 24-47pcs=Rp${Math.round(unitPrice * 0.95).toLocaleString('id-ID')}(5%), 48+pcs=Rp${Math.round(unitPrice * 0.93).toLocaleString('id-ID')}(7%)`
 
-  // Only mention "batas maksimum" at tier 3 (7%)
-  const batasLine = session.currentTier === 3
-    ? `BATAS: Diskon 7% adalah MAKSIMUM, tidak bisa ditambah lagi.`
-    : `ATURAN: JANGAN sebut "batas maksimum/maksimal" atau sebut tier diskon lain (5%, 7%). Fokus harga qty ini saja.`
+  // Current session info - compact
+  const sessionInfo = session.quantity < MINIMUM_ORDER_FOR_DISCOUNT
+    ? `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${unitPrice.toLocaleString('id-ID')}/pcs (belum dapat diskon, min ${MINIMUM_ORDER_FOR_DISCOUNT}pcs)`
+    : `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${currentDiscount}%), total Rp${totalPrice.toLocaleString('id-ID')}`
 
   return `${BASE_PERSONA_PROMPT}
-${styleInstruction}
+${styleInstruction} Emoji tiap akhir kalimat.
+${tierPrices}
 ${sessionInfo}
-${batasLine}
-PENTING: Jawab sesuai PERTANYAAN customer. Kalau tanya warna, jawab warna. Kalau tanya harga, jawab harga saat ini saja. Emoji HANYA di akhir kalimat (1x), tidak di tengah.`
+BATAS: Max diskon=${currentDiscount}%, min harga=Rp${offeredPrice.toLocaleString('id-ID')}/pcs. Tolak sopan jika minta lebih murah.
+FORMAT: 2-3 kalimat pendek, langsung jawab, sertakan harga spesifik.`
 }
 
 export function validateAIResponse(

@@ -9,7 +9,6 @@ import {
   buildSystemPrompt,
   validateAIResponse,
   getNextTier,
-  getMaxTierForQty,
   MINIMUM_ORDER_FOR_DISCOUNT,
   BASE_PERSONA_PROMPT,
   detectCustomerStyle,
@@ -91,9 +90,8 @@ export async function POST(request: Request) {
     }
 
     if (intent === 'REJECT') {
-      const maxTier = getMaxTierForQty(session.quantity)
-      if (session.quantity >= MINIMUM_ORDER_FOR_DISCOUNT && session.currentTier < maxTier) {
-        session.currentTier = getNextTier(session.currentTier, session.quantity) as 0 | 1 | 2 | 3
+      if (session.quantity >= MINIMUM_ORDER_FOR_DISCOUNT && session.currentTier < 3) {
+        session.currentTier = getNextTier(session.currentTier) as 0 | 1 | 2 | 3
       }
 
       const offeredPrice = getOfferedPrice(session)
@@ -114,7 +112,7 @@ Harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs memang tidak bisa dikurangi ka
 Sampaikan dengan lembut bahwa kalau mau diskon, bisa tambah quantity sampai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs.
 Jangan bertanya balik. Sampaikan informasinya sebagai penjelasan yang hangat, bukan pertanyaan.
 Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total sekarang: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
-      } else if (session.currentTier < maxTier) {
+      } else if (session.currentTier < 3) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
 GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Boleh pakai emoji.' : 'Minimal emoji.'}
@@ -123,8 +121,7 @@ SITUASI: Customer minta harga lebih murah. KABAR BAIK — kamu bisa kasih tambah
 Diskon NAIK dari sebelumnya menjadi ${discount}%.
 Harga baru: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total ${session.quantity} pcs: Rp ${total.toLocaleString('id-ID')}.
 Sampaikan dengan ANTUSIAS bahwa kamu bisa kasih tambahan diskon. Contoh: "Baik kak, khusus untuk kakak saya kasih tambahan diskon jadi ${discount}%! 😊"
-JANGAN bilang "tidak bisa kurang" atau "sudah harga terbaik" — karena kamu BISA kasih diskon lebih.
-JANGAN sebut "batas maksimum" — masih bisa naik lagi kalau ditawar.`
+JANGAN bilang "tidak bisa kurang" atau "sudah harga terbaik" — karena kamu BISA kasih diskon lebih.`
       } else {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
