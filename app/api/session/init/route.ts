@@ -4,7 +4,6 @@ import { generateNegotiationResponse } from '@/lib/server/groq'
 import {
   getInitialTier,
   getOfferedPrice,
-  validateAIResponse,
   MINIMUM_ORDER_FOR_DISCOUNT,
   BASE_PERSONA_PROMPT,
 } from '@/lib/server/negotiation-state'
@@ -73,11 +72,11 @@ SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima 
       }
 
       const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)', 'init')
-      initialMessage = validateAIResponse(greeting, session)
+      initialMessage = greeting.trim() || `Hai kak! 😊 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Ada yang bisa dibantu?`
     } catch {
       const unitPrice = quote.unitPrice
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
-        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
+        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya di Rp ${unitPrice.toLocaleString('id-ID')}/pcs 😊`
       } else {
         initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Ada yang bisa dibantu kak? 😊`
       }
