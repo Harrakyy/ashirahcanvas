@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Boleh pakai emoji.' : 'Minimal emoji.'}
+GAYA: ${styleHint} Sapa pakai "Kak". ${style.isFormal ? 'Tanpa emoji.' : 'Boleh 1 emoji di akhir pesan.'}
 
 SITUASI: Customer ${session.quantity} pcs minta harga lebih murah.
 Harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs memang tidak bisa dikurangi karena belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk diskon.
@@ -115,17 +115,17 @@ Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total sekarang: Rp ${
       } else if (session.currentTier < 3) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Boleh pakai emoji.' : 'Minimal emoji.'}
+GAYA: ${styleHint} Sapa pakai "Kak". ${style.isFormal ? 'Tanpa emoji.' : 'Boleh 1 emoji di akhir pesan.'}
 
 SITUASI: Customer minta harga lebih murah. KABAR BAIK — kamu bisa kasih tambahan diskon!
 Diskon NAIK dari sebelumnya menjadi ${discount}%.
 Harga baru: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total ${session.quantity} pcs: Rp ${total.toLocaleString('id-ID')}.
-Sampaikan dengan ANTUSIAS bahwa kamu bisa kasih tambahan diskon. Contoh: "Baik kak, khusus untuk kakak saya kasih tambahan diskon jadi ${discount}%! 😊"
+Sampaikan dengan ANTUSIAS bahwa kamu bisa kasih tambahan diskon. Contoh: "Baik kak, khusus untuk kakak saya kasih tambahan diskon jadi ${discount}%!"
 JANGAN bilang "tidak bisa kurang" atau "sudah harga terbaik" — karena kamu BISA kasih diskon lebih.`
       } else {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Gunakan emoji di setiap akhir kalimat.' : 'Minimal emoji.'}
+GAYA: ${styleHint} Sapa pakai "Kak". ${style.isFormal ? 'Tanpa emoji.' : 'Boleh 1 emoji di akhir pesan.'}
 
 SITUASI: Customer keberatan dengan harga, tapi diskon sudah maksimal ${discount}%.
 Harga: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total: Rp ${total.toLocaleString('id-ID')}.
