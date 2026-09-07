@@ -117,11 +117,11 @@ Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total sekarang: Rp ${
 
 GAYA: ${styleHint} Sapa pakai "Kak". ${style.usesEmoji ? 'Boleh pakai emoji.' : 'Minimal emoji.'}
 
-SITUASI: Customer menolak tawaran sebelumnya. Kamu menawarkan harga lebih baik!
-Tier diskon naik ke: ${session.currentTier} (${discount}% diskon).
+SITUASI: Customer minta harga lebih murah. KABAR BAIK — kamu bisa kasih tambahan diskon!
+Diskon NAIK dari sebelumnya menjadi ${discount}%.
 Harga baru: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total ${session.quantity} pcs: Rp ${total.toLocaleString('id-ID')}.
-Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
-Tawarkan harga baru dengan antusias dan tunjukkan perbandingan harga.`
+Sampaikan dengan ANTUSIAS bahwa kamu bisa kasih tambahan diskon. Contoh: "Baik kak, khusus untuk kakak saya kasih tambahan diskon jadi ${discount}%! 😊"
+JANGAN bilang "tidak bisa kurang" atau "sudah harga terbaik" — karena kamu BISA kasih diskon lebih.`
       } else {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 

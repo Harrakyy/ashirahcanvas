@@ -134,6 +134,7 @@ export function classifyUserIntent(message: string): 'ACCEPT' | 'REJECT' | 'UNKN
 
   const acceptPatterns = [
     /\bsetuju\b/,
+    /\bambil\b/,
     /\bdeal\b/,
     /\bokes?\b/,
     /\bok\b/,
@@ -142,7 +143,6 @@ export function classifyUserIntent(message: string): 'ACCEPT' | 'REJECT' | 'UNKN
     /\bmantap\b/,
     /\bmantul\b/,
     /\bboleh\b/,
-    /\b同意\b/,
     /\ba deal\b/,
     /\byaudah\b/,
     /\bya udah\b/,
@@ -164,8 +164,6 @@ export function classifyUserIntent(message: string): 'ACCEPT' | 'REJECT' | 'UNKN
     /\bgo\s*for\s*it\b/,
     /\byes\b/,
     /\bnoted\b/,
-    /\bwes\b/,
-    /\brapopo\b/,
     /\bready\b/,
     /\bconfirm\b/,
     /\bconfirmed\b/,
@@ -218,6 +216,9 @@ export function classifyUserIntent(message: string): 'ACCEPT' | 'REJECT' | 'UNKN
     /\bturun(?:in)?\b/,
     /\bnaikkin\b/,
     /\bkasih\s*(harga|diskon)\b/,
+    /\bkurang(?:in|i)?\s*(lagi|dong|kak)?\b/,
+    /\bjadi\s*\d+[\d.,]*\s*(ribu|rb|juta|jt|k)\b/i,
+    /\bsaya\s*(ambil|mau|beli)\s*(kalau|kalo|kl)\s*(harga|nya)?\s*\d+/i,
   ]
 
   for (const pattern of acceptPatterns) {
@@ -275,9 +276,23 @@ export function validateAIResponse(
   const expectedPrice = getOfferedPrice(session)
   const expectedDiscount = getDiscountPercent(session.currentTier)
   const unitPrice = session.basePrice + session.logoPrice + session.textPrice
+  const fallbackPrice = expectedPrice.toLocaleString('id-ID')
+  const fallbackTotal = getTotalPrice(session).toLocaleString('id-ID')
+
+  // Handle empty response
+  if (!response || response.trim().length === 0) {
+    if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
+      return `Untuk pesanan ${session.quantity} pcs, harganya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak 😊 Kalau mau dapat diskon, minimal order ${MINIMUM_ORDER_FOR_DISCOUNT} pcs ya!`
+    }
+    return `Untuk ${session.quantity} pcs, harganya Rp ${fallbackPrice}/pcs (diskon ${expectedDiscount}%) 😊 Totalnya Rp ${fallbackTotal}. Ada yang bisa dibantu lagi kak?`
+  }
 
   const priceRegex = /Rp\s*([\d.]+)/gi
   const matches = [...response.matchAll(priceRegex)]
+
+  // Harga minimum valid adalah tier 3 (diskon 7%), bukan harga session
+  // Ini agar bot bisa menjawab pertanyaan "kalau X pcs berapa" dengan harga tier lain
+  const minValidPrice = Math.round(unitPrice * 0.93) // tier 3 = 7% diskon
 
   let hasIncorrectPrice = false
 
@@ -287,21 +302,14 @@ export function validateAIResponse(
 
     if (isNaN(price)) continue
 
-    if (price < expectedPrice && price > 0) {
-      hasIncorrectPrice = true
-      break
-    }
-
-    if (price === unitPrice && expectedDiscount > 0) {
+    // Hanya reject jika harga lebih rendah dari tier terendah (7%)
+    if (price < minValidPrice && price > 0) {
       hasIncorrectPrice = true
       break
     }
   }
 
   if (!hasIncorrectPrice) return response
-
-  const fallbackPrice = expectedPrice.toLocaleString('id-ID')
-  const fallbackTotal = getTotalPrice(session).toLocaleString('id-ID')
 
   if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
     return `Untuk pesanan ${session.quantity} pcs, sayangnya belum bisa dapat diskon ya kak. Minimal order ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk mendapatkan harga spesial. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
