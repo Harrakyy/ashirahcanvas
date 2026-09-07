@@ -66,16 +66,10 @@ export async function POST(request: Request) {
       let systemPrompt: string
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
         systemPrompt = `${BASE_PERSONA_PROMPT}
-
-SITUASI: Customer baru buka chat untuk negosiasi harga ${category.toLowerCase()} custom. Mereka belum order — masih mau diskusi harga.
-Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah + emoji, lalu tanya ada yang bisa dibantu + emoji.
-Jangan bilang "selamat datang". Jangan sebut syarat diskon dulu. Maksimal 2 kalimat.`
+SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima kasih tertarik ${category.toLowerCase()} custom Ashirah, tanya ada yang bisa dibantu. No harga/diskon. Maks 2 kalimat.`
       } else {
         systemPrompt = `${BASE_PERSONA_PROMPT}
-
-SITUASI: Customer baru buka chat untuk negosiasi harga ${category.toLowerCase()} custom. Mereka belum order — masih mau diskusi harga.
-Buat kalimat sapaan: sapa dengan "Hai kak!" + 1 emoji, ucapkan terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah, lalu tanya ada yang bisa dibantu.
-JANGAN sebut harga, diskon, atau persen apapun. JANGAN sebut "selamat datang". Maksimal 2 kalimat.`
+SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima kasih tertarik ${category.toLowerCase()} custom Ashirah, tanya ada yang bisa dibantu. JANGAN sebut harga/diskon/%. Maks 2 kalimat.`
       }
 
       const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)', 'init')

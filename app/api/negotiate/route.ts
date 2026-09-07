@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       const discount = getDiscountPercent(session.currentTier)
       const total = getTotalPrice(session)
 
-      const acceptSystemPrompt = buildSystemPrompt(session) + `\n\nCustomer SETUJU dengan harga yang ditawarkan. Konfirmasi kesepakatan dengan ramah, sebutkan harga final yang sudah disepakati, dan terima kasih customer. Jangan tawarkan harga lebih rendah.`
+      const acceptSystemPrompt = buildSystemPrompt(session) + `\n\nCustomer SETUJU. Konfirmasi harga final Rp${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%), total Rp${total.toLocaleString('id-ID')} untuk ${session.quantity}pcs. Terima kasih, ramah.`
 
       try {
         const response = await generateNegotiationResponse(acceptSystemPrompt, message, 'accept')
@@ -105,37 +105,16 @@ export async function POST(request: Request) {
       let rejectSystemPrompt: string
       if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
-
-GAYA: ${styleHint} ${style.isFormal ? 'Tanpa emoji. Sopan dan hangat, tidak kaku.' : 'Boleh 1 emoji di akhir pesan.'}
-JANGAN mulai kalimat dengan "Kak," — sapaan pakai "...ya kak" di akhir kalimat jika perlu.
-JANGAN bilang "maaf" — ini bukan kesalahan siapapun.
-
-SITUASI: Customer ${session.quantity} pcs minta harga lebih murah.
-Harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs tidak bisa dikurangi karena belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk diskon.
-Sampaikan dengan hangat bahwa kalau mau diskon, bisa tambah quantity sampai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs.
-Harga: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total sekarang: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
+${styleHint} ${style.isFormal ? 'Formal, no emoji.' : '1 emoji di akhir.'}.
+SITUASI: ${session.quantity}pcs, minta harga lebih murah. Harga Rp${unitPrice.toLocaleString('id-ID')}/pcs tidak bisa kurang — belum min ${MINIMUM_ORDER_FOR_DISCOUNT}pcs. Sampaikan hangat, arahkan tambah qty. Total: Rp${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
       } else if (session.currentTier < 3) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
-
-GAYA: ${styleHint} ${style.isFormal ? 'Tanpa emoji. Sopan dan hangat, tidak kaku.' : 'Boleh 1 emoji di akhir pesan.'}
-JANGAN mulai kalimat dengan "Kak," — sapaan pakai "...ya kak" di akhir kalimat jika perlu.
-JANGAN bilang "maaf". JANGAN bilang "sudah maksimal" atau "tidak bisa kurang lagi".
-
-SITUASI: Customer minta harga lebih murah. KABAR BAIK — kamu BISA kasih diskon!
-Diskon diberikan: ${discount}% — sebutkan angka ini dengan jelas.
-Harga baru: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total ${session.quantity} pcs: Rp ${total.toLocaleString('id-ID')}.
-Sampaikan dengan antusias bahwa kamu bisa kasih diskon ${discount}% untuk pesanan ini.`
+${styleHint} ${style.isFormal ? 'Formal, no emoji.' : '1 emoji di akhir.'} No "Kak," di awal. No "maaf". No "sudah maksimal".
+SITUASI: Customer minta lebih murah — BISA kasih diskon! Diskon ${discount}%, harga jadi Rp${offeredPrice.toLocaleString('id-ID')}/pcs, total Rp${total.toLocaleString('id-ID')} untuk ${session.quantity}pcs. Sampaikan antusias.`
       } else {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
-
-GAYA: ${styleHint} ${style.isFormal ? 'Tanpa emoji. Sopan dan hangat, tidak kaku.' : 'Boleh 1 emoji di akhir pesan.'}
-JANGAN mulai kalimat dengan "Kak," — sapaan pakai "...ya kak" di akhir kalimat jika perlu.
-JANGAN bilang "maaf".
-
-SITUASI: Customer minta harga lebih murah lagi. Diskon sudah naik ke ${discount}% (ini yang tertinggi).
-Harga baru: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Total ${session.quantity} pcs: Rp ${total.toLocaleString('id-ID')}.
-Sebutkan bahwa diskon sudah naik menjadi ${discount}% dan ini adalah penawaran terbaik.
-Jangan tawarkan harga lebih rendah dari Rp ${offeredPrice.toLocaleString('id-ID')}/pcs.`
+${styleHint} ${style.isFormal ? 'Formal, no emoji.' : '1 emoji di akhir.'} No "Kak," di awal. No "maaf".
+SITUASI: Diskon sudah naik ke ${discount}% (tertinggi). Harga Rp${offeredPrice.toLocaleString('id-ID')}/pcs, total Rp${total.toLocaleString('id-ID')} untuk ${session.quantity}pcs. Sebutkan ${discount}% adalah penawaran terbaik.`
       }
 
       try {
