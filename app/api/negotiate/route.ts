@@ -76,6 +76,7 @@ export async function POST(request: Request) {
 
       await updateSession(session)
 
+      console.log(`[AshirahBot] RESPONSE | branch: accept | tier: ${session.currentTier} | currentPrice: ${offeredPrice} | qty: ${session.quantity}`)
       return NextResponse.json({
         aiMessage,
         currentPrice: offeredPrice,
@@ -159,6 +160,7 @@ Jangan tawarkan harga lebih rendah dari Rp ${offeredPrice.toLocaleString('id-ID'
 
       await updateSession(session)
 
+      console.log(`[AshirahBot] RESPONSE | branch: reject | tier: ${session.currentTier} | currentPrice: ${offeredPrice} | qty: ${session.quantity}`)
       return NextResponse.json({
         aiMessage,
         currentPrice: offeredPrice,
@@ -192,9 +194,11 @@ Jangan tawarkan harga lebih rendah dari Rp ${offeredPrice.toLocaleString('id-ID'
 
     await updateSession(session)
 
+    const finalPrice = getOfferedPrice(session)
+    console.log(`[AshirahBot] RESPONSE | branch: unknown | tier: ${session.currentTier} | currentPrice: ${finalPrice} | qty: ${session.quantity}`)
     return NextResponse.json({
       aiMessage,
-      currentPrice: getOfferedPrice(session),
+      currentPrice: finalPrice,
       tier: session.currentTier,
       agreedDiscount: session.agreedDiscount,
       messages: session.messages.map((msg, index) => ({

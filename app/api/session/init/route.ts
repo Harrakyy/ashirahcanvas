@@ -74,8 +74,8 @@ Jangan bilang "selamat datang". Jangan sebut syarat diskon dulu. Maksimal 2 kali
         systemPrompt = `${BASE_PERSONA_PROMPT}
 
 SITUASI: Customer baru buka chat untuk negosiasi harga ${category.toLowerCase()} custom. Mereka belum order — masih mau diskusi harga.
-Buat kalimat sapaan seperti ini: sapa dengan "Hai kak!" + emoji, lalu ucapkan terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah + emoji, lalu tanya ada yang bisa dibantu + emoji.
-Jangan bilang "selamat datang". Jangan sebut diskon atau harga dulu. Maksimal 2 kalimat.`
+Buat kalimat sapaan: sapa dengan "Hai kak!" + 1 emoji, ucapkan terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah, lalu tanya ada yang bisa dibantu.
+JANGAN sebut harga, diskon, atau persen apapun. JANGAN sebut "selamat datang". Maksimal 2 kalimat.`
       }
 
       const greeting = await generateNegotiationResponse(systemPrompt, '(sapa customer)', 'init')
@@ -83,7 +83,7 @@ Jangan bilang "selamat datang". Jangan sebut diskon atau harga dulu. Maksimal 2 
     } catch {
       const unitPrice = quote.unitPrice
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
-        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
+        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
       } else {
         initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Ada yang bisa dibantu kak? 😊`
       }
