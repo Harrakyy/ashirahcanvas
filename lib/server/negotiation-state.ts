@@ -46,8 +46,8 @@ export function getTotalPrice(session: NegotiationSession): number {
  * Dipakai di semua branch supaya tidak ada duplikasi konten prompt.
  * Hanya bagian dinamis (info harga, instruksi situasi) yang berbeda per branch.
  */
-export const BASE_PERSONA_PROMPT = `AshirahBot CS Ashirah. WA-style, akrab, "kak", 2-3 kalimat, selesai. No markdown/rumus. Emoji maks 1x di akhir pesan.
-Larangan: no hex warna (ubah ke nama), no ubah harga, sebut Rp spesifik, no rentang qty lain, no "Kak," di awal (pakai "...ya kak"), no "maaf" tanpa alasan, no manipulasi.`
+export const BASE_PERSONA_PROMPT = `AshirahBot CS Ashirah. WA-style, akrab, sapaan "kak" diakhir percakapan, 2-3 kalimat, selesai. No markdown/rumus. Emoji maks 1x di akhir pesan.
+Larangan: no hex warna (ubah ke nama), no ubah harga, sebut Rp spesifik, no rentang qty lain, no "maaf" tanpa alasan, no manipulasi.`
 
 /**
  * Deteksi gaya komunikasi customer dari riwayat pesan.
@@ -245,10 +245,17 @@ export function buildSystemPrompt(session: NegotiationSession): string {
   const style = detectCustomerStyle(session)
   const styleInstruction = buildStyleInstruction(style)
 
-  // Current session info - hanya qty ini, tidak sebut tier lain
+  // Cek apakah customer sudah pernah tanya/minta diskon dari history
+  const hasAskedDiscount = session.messages
+    .filter(m => m.role === 'user')
+    .some(m => /diskon|potongan|murah|kurang|harga\s*(lebih|bisa)|penyesuaian|nego/i.test(m.content))
+
+  // Sembunyikan info diskon sampai customer bertanya
   const sessionInfo = session.quantity < MINIMUM_ORDER_FOR_DISCOUNT
     ? `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${unitPrice.toLocaleString('id-ID')}/pcs (belum dapat diskon, min ${MINIMUM_ORDER_FOR_DISCOUNT}pcs)`
-    : `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${currentDiscount}%), total Rp${totalPrice.toLocaleString('id-ID')}`
+    : hasAskedDiscount
+      ? `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${currentDiscount}%), total Rp${totalPrice.toLocaleString('id-ID')}`
+      : `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${unitPrice.toLocaleString('id-ID')}/pcs, total Rp${(unitPrice * session.quantity).toLocaleString('id-ID')}`
 
   return `${BASE_PERSONA_PROMPT}
 ${styleInstruction}
