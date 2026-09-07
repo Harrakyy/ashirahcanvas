@@ -1,9 +1,3 @@
-/**
- * OWNERSHIP: Backend
- * State mesin negosiasi: tier diskon, intent user, buildSystemPrompt,
- * dan validateAIResponse (koreksi harga output AI). Jangan import dari frontend.
- * Lihat ARCHITECTURE.md section C.
- */
 import type { NegotiationSession } from './session-store'
 import type { CustomerStyle } from '@/types/negotiation'
 
@@ -15,11 +9,6 @@ export const DISCOUNT_TIERS = [
 ] as const
 
 export const MINIMUM_ORDER_FOR_DISCOUNT = 12
-
-export function getInitialTier(quantity: number): 0 | 1 | 2 | 3 {
-  if (quantity < MINIMUM_ORDER_FOR_DISCOUNT) return 0
-  return 1
-}
 
 export function getNextTier(currentTier: number): number {
   if (currentTier >= 3) return 3
@@ -41,19 +30,9 @@ export function getTotalPrice(session: NegotiationSession): number {
   return getOfferedPrice(session) * session.quantity
 }
 
-/**
- * Bagian statis persona AshirahBot — identitas, gaya bahasa, dan aturan ketat.
- * Dipakai di semua branch supaya tidak ada duplikasi konten prompt.
- * Hanya bagian dinamis (info harga, instruksi situasi) yang berbeda per branch.
- */
 export const BASE_PERSONA_PROMPT = `AshirahBot CS Ashirah. WA-style, akrab, sapaan "kak" diakhir percakapan, 2-3 kalimat, selesai. No markdown/rumus. Emoji maks 1x di akhir pesan.
 Larangan: no hex warna (ubah ke nama), no ubah harga, sebut Rp spesifik, no rentang qty lain, no "maaf" tanpa alasan, no manipulasi.`
 
-/**
- * Deteksi gaya komunikasi customer dari riwayat pesan.
- * Menggunakan regex + heuristik ringan — tanpa LLM tambahan,
- * sehingga tidak menambah biaya token secara signifikan.
- */
 export function detectCustomerStyle(session: NegotiationSession): CustomerStyle {
   const userMessages = session.messages
     .filter(m => m.role === 'user')
@@ -96,11 +75,6 @@ export function detectCustomerStyle(session: NegotiationSession): CustomerStyle 
   }
 }
 
-/**
- * Bangun instruksi gaya adaptif berdasarkan hasil detectCustomerStyle.
- * Mengganti satu baris instruksi gaya yang sudah ada — bukan menambah blok baru —
- * sehingga penambahan token minimal (~10–20 token per request).
- */
 function buildStyleInstruction(style: CustomerStyle): string {
   const length = style.isShort ? '1-2 kalimat.' : 'Boleh detail, to the point.'
   const tone = style.isFormal
@@ -202,7 +176,6 @@ export function classifyUserIntent(message: string): 'ACCEPT' | 'REJECT' | 'UNKN
     /\bkurang(?:in|i)?\s*(lagi|dong|kak)?\b/,
     /\bjadi\s*\d+[\d.,]*\s*(ribu|rb|juta|jt|k)\b/i,
     /\bsaya\s*(ambil|mau|beli)\s*(kalau|kalo|kl)\s*(harga|nya)?\s*\d+/i,
-    // Pola formal — negosiasi sopan
     /\bpenyesuaian\s*harga\b/i,
     /\bdipertimbangkan\s*(kembali|lagi)?\b/i,
     /\bmasih\s*(cukup|terasa|dirasa)\s*(tinggi|mahal|berat)\b/i,
@@ -217,8 +190,6 @@ export function classifyUserIntent(message: string): 'ACCEPT' | 'REJECT' | 'UNKN
     if (pattern.test(lower)) return 'ACCEPT'
   }
 
-  // Tangkap pesan yang jelas bertanya cara/prosedur sebagai UNKNOWN
-  // supaya tidak salah masuk ACCEPT karena ada kata seperti "ya", "lanjut", "baik"
   const questionPatterns = [
     /bagaimana\s+(cara|caranya|bisa|ya)/i,
     /gimana\s+(cara|caranya|bisa|ya)/i,
@@ -245,12 +216,10 @@ export function buildSystemPrompt(session: NegotiationSession): string {
   const style = detectCustomerStyle(session)
   const styleInstruction = buildStyleInstruction(style)
 
-  // Cek apakah customer sudah pernah tanya/minta diskon dari history
   const hasAskedDiscount = session.messages
     .filter(m => m.role === 'user')
     .some(m => /diskon|potongan|murah|kurang|harga\s*(lebih|bisa)|penyesuaian|nego/i.test(m.content))
 
-  // Sembunyikan info diskon sampai customer bertanya
   const sessionInfo = session.quantity < MINIMUM_ORDER_FOR_DISCOUNT
     ? `ORDER: ${session.quantity}pcs ${session.category} warna:${session.color}, Rp${unitPrice.toLocaleString('id-ID')}/pcs (belum dapat diskon, min ${MINIMUM_ORDER_FOR_DISCOUNT}pcs)`
     : hasAskedDiscount
@@ -274,7 +243,6 @@ export function validateAIResponse(
   const fallbackPrice = expectedPrice.toLocaleString('id-ID')
   const fallbackTotal = getTotalPrice(session).toLocaleString('id-ID')
 
-  // Handle empty response
   if (!response || response.trim().length === 0) {
     if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
       return `Untuk pesanan ${session.quantity} pcs, harganya Rp ${unitPrice.toLocaleString('id-ID')}/pcs kak 😊 Kalau mau dapat diskon, minimal order ${MINIMUM_ORDER_FOR_DISCOUNT} pcs ya!`
@@ -284,20 +252,13 @@ export function validateAIResponse(
 
   const priceRegex = /Rp\s*([\d.]+)/gi
   const matches = [...response.matchAll(priceRegex)]
-
-  // Harga minimum valid adalah tier 3 (diskon 7%), bukan harga session
-  // Ini agar bot bisa menjawab pertanyaan "kalau X pcs berapa" dengan harga tier lain
-  const minValidPrice = Math.round(unitPrice * 0.93) // tier 3 = 7% diskon
-
+  const minValidPrice = Math.round(unitPrice * 0.93)
   let hasIncorrectPrice = false
 
   for (const match of matches) {
     const priceStr = match[1].replace(/\./g, '')
     const price = parseInt(priceStr, 10)
-
     if (isNaN(price)) continue
-
-    // Hanya reject jika harga lebih rendah dari tier terendah (7%)
     if (price < minValidPrice && price > 0) {
       hasIncorrectPrice = true
       break

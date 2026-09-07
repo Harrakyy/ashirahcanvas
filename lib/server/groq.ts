@@ -1,9 +1,3 @@
-/**
- * OWNERSHIP: Backend
- * Gateway model AI (Groq) + retry. Output AI selalu dikuatkan oleh
- * validateAIResponse di negotiation-state sebelum sampai ke user.
- * Lihat ARCHITECTURE.md section C.
- */
 import Groq from 'groq-sdk'
 import type { TokenLog } from '@/types/negotiation'
 
@@ -22,10 +16,6 @@ function getErrorStatus(error: unknown): number | undefined {
   return (error as { status?: number })?.status
 }
 
-/**
- * Estimator fallback: ~4 karakter per token untuk teks Indonesia/Inggris campuran.
- * Dipakai hanya ketika completion.usage tidak tersedia.
- */
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4)
 }

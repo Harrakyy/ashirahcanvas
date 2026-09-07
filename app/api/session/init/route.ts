@@ -2,12 +2,10 @@ import { NextResponse } from 'next/server'
 import { createSession } from '@/lib/server/session-store'
 import { generateNegotiationResponse } from '@/lib/server/groq'
 import {
-  getInitialTier,
   getOfferedPrice,
   MINIMUM_ORDER_FOR_DISCOUNT,
   BASE_PERSONA_PROMPT,
 } from '@/lib/server/negotiation-state'
-import { getProductById } from '@/lib/config/products'
 import { buildPriceQuote } from '@/lib/server/pricing'
 
 const MAX_ORDER_QTY = 10000
@@ -39,7 +37,6 @@ export async function POST(request: Request) {
     }
 
     const quote = buildPriceQuote(productId, category)
-    const initialTier = getInitialTier(totalQty)
     const sessionId = crypto.randomUUID()
 
     const now = Date.now()
@@ -52,7 +49,7 @@ export async function POST(request: Request) {
       logoPrice: quote.logoPrice,
       textPrice: quote.textPrice,
       quantity: totalQty,
-      currentTier: initialTier as 0 | 1 | 2 | 3,
+      currentTier: 0 as 0 | 1 | 2 | 3,
       agreedDiscount: null,
       messages: [] as { role: 'user' | 'assistant'; content: string; timestamp: number }[],
       createdAt: now,
@@ -90,11 +87,13 @@ SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima 
 
     await createSession(session)
 
+    const initPrice = getOfferedPrice(session)
+    console.log(`[AshirahBot] RESPONSE | branch: init | tier: ${session.currentTier} | currentPrice: ${initPrice} | qty: ${totalQty}`)
     return NextResponse.json({
       sessionId,
       initialMessage,
-      currentPrice: getOfferedPrice(session),
-      tier: initialTier,
+      currentPrice: initPrice,
+      tier: session.currentTier,
       totalQty,
       quote,
     })
