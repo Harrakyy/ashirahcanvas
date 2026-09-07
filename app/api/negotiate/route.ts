@@ -105,36 +105,35 @@ export async function POST(request: Request) {
       if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA: ${styleHint} Sapa pakai "Kak". ${style.isFormal ? 'Tanpa emoji.' : 'Boleh 1 emoji di akhir pesan.'}
+GAYA: ${styleHint} ${style.isFormal ? 'Tanpa emoji. Sopan dan hangat, tidak kaku.' : 'Boleh 1 emoji di akhir pesan.'}
+JANGAN mulai kalimat dengan "Kak," — sapaan pakai "...ya kak" di akhir kalimat jika perlu.
+JANGAN bilang "maaf" — ini bukan kesalahan siapapun.
 
 SITUASI: Customer ${session.quantity} pcs minta harga lebih murah.
-Harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs memang tidak bisa dikurangi karena belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk diskon.
-Sampaikan dengan lembut bahwa kalau mau diskon, bisa tambah quantity sampai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs.
-Jangan bertanya balik. Sampaikan informasinya sebagai penjelasan yang hangat, bukan pertanyaan.
-Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total sekarang: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
+Harga Rp ${unitPrice.toLocaleString('id-ID')}/pcs tidak bisa dikurangi karena belum mencapai minimum ${MINIMUM_ORDER_FOR_DISCOUNT} pcs untuk diskon.
+Sampaikan dengan hangat bahwa kalau mau diskon, bisa tambah quantity sampai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs.
+Harga: Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Total sekarang: Rp ${(unitPrice * session.quantity).toLocaleString('id-ID')}.`
       } else if (session.currentTier < 3) {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA: ${styleHint} Sapa pakai "Kak". ${style.isFormal ? 'Tanpa emoji.' : 'Boleh 1 emoji di akhir pesan.'}
+GAYA: ${styleHint} ${style.isFormal ? 'Tanpa emoji. Sopan dan hangat, tidak kaku.' : 'Boleh 1 emoji di akhir pesan.'}
+JANGAN mulai kalimat dengan "Kak," — sapaan pakai "...ya kak" di akhir kalimat jika perlu.
+JANGAN bilang "maaf". JANGAN bilang "sudah maksimal" atau "tidak bisa kurang lagi".
 
-SITUASI: Customer minta harga lebih murah. KABAR BAIK — kamu bisa kasih tambahan diskon!
-Diskon NAIK dari sebelumnya menjadi ${discount}%.
+SITUASI: Customer minta harga lebih murah. KABAR BAIK — kamu BISA kasih diskon!
+Diskon diberikan: ${discount}% — sebutkan angka ini dengan jelas.
 Harga baru: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total ${session.quantity} pcs: Rp ${total.toLocaleString('id-ID')}.
-Sampaikan dengan ANTUSIAS bahwa kamu bisa kasih tambahan diskon. Contoh: "Baik kak, khusus untuk kakak saya kasih tambahan diskon jadi ${discount}%!"
-JANGAN bilang "tidak bisa kurang" atau "sudah harga terbaik" — karena kamu BISA kasih diskon lebih.`
+Sampaikan dengan antusias bahwa kamu bisa kasih diskon ${discount}% untuk pesanan ini.`
       } else {
         rejectSystemPrompt = `${BASE_PERSONA_PROMPT}
 
-GAYA: ${styleHint} Sapa pakai "Kak". ${style.isFormal ? 'Tanpa emoji.' : 'Boleh 1 emoji di akhir pesan.'}
+GAYA: ${styleHint} ${style.isFormal ? 'Tanpa emoji. Sopan dan hangat, tidak kaku.' : 'Boleh 1 emoji di akhir pesan.'}
+JANGAN mulai kalimat dengan "Kak," — sapaan pakai "...ya kak" di akhir kalimat jika perlu.
+JANGAN bilang "maaf".
 
-SITUASI: Customer keberatan dengan harga, tapi diskon sudah maksimal ${discount}%.
-Harga: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs. Total: Rp ${total.toLocaleString('id-ID')}.
-Harga normal: Rp ${unitPrice.toLocaleString('id-ID')}/pcs.
-
-Respons harus sesuai dengan pertanyaan/keluhan spesifik customer — jangan copy-paste jawaban sebelumnya.
-Kalau customer tanya "kenapa tidak bisa kurang" → jelaskan alasannya (sudah diskon maksimal dari harga normal).
-Kalau customer bilang "masih mahal" → akui dengan empati, tunjukkan nilai yang didapat dari harga ini.
-Kalau customer minta diskon lebih dari ${discount}% → tolak dengan sopan, jelaskan batas maksimal.
+SITUASI: Customer minta harga lebih murah lagi. Diskon sudah naik ke ${discount}% (ini yang tertinggi).
+Harga baru: Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Total ${session.quantity} pcs: Rp ${total.toLocaleString('id-ID')}.
+Sebutkan bahwa diskon sudah naik menjadi ${discount}% dan ini adalah penawaran terbaik.
 Jangan tawarkan harga lebih rendah dari Rp ${offeredPrice.toLocaleString('id-ID')}/pcs.`
       }
 
@@ -144,11 +143,11 @@ Jangan tawarkan harga lebih rendah dari Rp ${offeredPrice.toLocaleString('id-ID'
       } catch (error) {
         console.error('[AshirahBot] REJECT branch Groq FAILED:', error)
         if (session.quantity < MINIMUM_ORDER_FOR_DISCOUNT) {
-          aiMessage = `Maaf kak, untuk ${session.quantity} pcs, harganya Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya. Sayangnya minimal ${MINIMUM_ORDER_FOR_DISCOUNT} pcs baru bisa dapat diskon. Kalau mau tambah quantity, nanti saya bantu hitung yang terbaik! 😊`
+          aiMessage = `Untuk ${session.quantity} pcs, harganya Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Diskon baru bisa didapat mulai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs ya kak.`
         } else if (session.currentTier < 3) {
-          aiMessage = `Oke kak, saya kasih penawaran lebih baik nih! 😊 Untuk ${session.quantity} pcs, saya bisa kasih harga Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%). Totalnya Rp ${total.toLocaleString('id-ID')}. Ini lebih murah dari sebelumnya lho. Gimana kak?`
+          aiMessage = `Untuk ${session.quantity} pcs, saya bisa kasih diskon ${discount}% — jadi Rp ${offeredPrice.toLocaleString('id-ID')}/pcs, total Rp ${total.toLocaleString('id-ID')} ya kak.`
         } else {
-          aiMessage = `Maaf kak, untuk ${session.quantity} pcs, harga Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%) memang sudah harga terbaik yang bisa kami berikan. Totalnya Rp ${total.toLocaleString('id-ID')}. Sudah diskon ${discount}% dari harga normal Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak 🙏`
+          aiMessage = `Diskon sudah naik ke ${discount}% ya kak, harga jadi Rp ${offeredPrice.toLocaleString('id-ID')}/pcs, total Rp ${total.toLocaleString('id-ID')}. Ini penawaran terbaik yang bisa kami berikan.`
         }
       }
 
