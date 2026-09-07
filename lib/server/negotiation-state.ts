@@ -257,8 +257,8 @@ export function buildSystemPrompt(session: NegotiationSession): string {
   return `${BASE_PERSONA_PROMPT}
 ${styleInstruction}
 ${sessionInfo}
-BATAS: Max diskon=${currentDiscount}%, min harga=Rp${offeredPrice.toLocaleString('id-ID')}/pcs. Tolak sopan jika minta lebih murah.
-FORMAT: 2-3 kalimat pendek, langsung jawab, sertakan harga spesifik.`
+ATURAN: Diskon saat ini ${currentDiscount}%. Jangan bilang "sudah maksimal" atau "tidak bisa dikurangi" — jawab pertanyaan customer saja.
+FORMAT: 2-3 kalimat pendek, langsung jawab, sertakan harga spesifik. Kalau customer sapa "Selamat siang/pagi/sore", balas dengan sapaan waktu yang sama.`
 }
 
 export function validateAIResponse(
