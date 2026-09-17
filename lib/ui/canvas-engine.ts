@@ -4,8 +4,8 @@
  * State silang dipegang lib/ui/design-state.ts; config dari lib/config/{print-areas,
  * mockup-paths}. Lihat ARCHITECTURE.md section D.
  */
-import { Canvas, FabricImage, FabricObject, Rect, Polygon, util } from 'fabric'
-import { getPrintArea } from '@/lib/config/print-areas'
+import { Canvas, FabricImage, FabricObject, Rect, Polygon, Textbox, util } from 'fabric'
+import { getPrintArea, getPrintAreaForZone } from '@/lib/config/print-areas'
 import { getMockupUrl } from '@/lib/config/mockup-paths'
 import type { PrintArea } from '@/types/print-area'
 import {
@@ -27,7 +27,21 @@ let boundElement: HTMLCanvasElement | null = null
 // Design state (active zone + per-zone serialized objects) now lives in
 // lib/ui/design-state.ts as a single channel.
 
-const USER_PROPERTIES = ['id', 'name', 'view', 'isBackground'] as const
+const USER_PROPERTIES = [
+  'id',
+  'name',
+  'view',
+  'isBackground',
+  'sourceFileName',
+  'selectable',
+  'evented',
+  'lockRotation',
+] as const
+
+export function generateLayerId(): string {
+  layerCounter++
+  return `layer-${Date.now()}-${layerCounter}-${Math.random().toString(36).slice(2, 6)}`
+}
 
 export function createCanvas(
   el: HTMLCanvasElement,
@@ -49,6 +63,9 @@ export function createCanvas(
 
   layerCounter = 0
   setActiveZone('front')
+  if (typeof window !== 'undefined') {
+    ;(window as any).__fabricCanvas = fabricCanvas
+  }
 
   return fabricCanvas
 }
@@ -107,7 +124,11 @@ function createPrintAreaClipPath(area: PrintArea): Polygon {
 }
 
 function isUserObject(obj: FabricObject): boolean {
-  return !(obj as any).isBackground && (obj as any).id !== '__debug_overlay__'
+  return (
+    !(obj as any).isBackground &&
+    (obj as any).id !== '__debug_overlay__' &&
+    (obj as any).id !== '__safe_zone_guide__'
+  )
 }
 
 export function applyPrintAreaClip(
@@ -130,7 +151,7 @@ export function reapplyAllClips(
 ): void {
   if (!fabricCanvas) return
 
-  const area = getPrintArea(category, colorHex, view)
+  const area = (category && colorHex ? getPrintArea(category, colorHex, view) : null) ?? getPrintAreaForZone(view)
   const objects = fabricCanvas.getObjects().filter(isUserObject)
 
   for (const obj of objects) {
@@ -152,7 +173,7 @@ interface SerializableObject {
   [key: string]: unknown
 }
 
-function serializeUserObjects(canvas: Canvas): string {
+export function serializeUserObjects(canvas: Canvas): string {
   const json = canvas.toObject([...USER_PROPERTIES] as any) as {
     objects?: SerializableObject[]
   }
@@ -160,7 +181,8 @@ function serializeUserObjects(canvas: Canvas): string {
     (o) =>
       !(o.isBackground === true) &&
       o.id !== '__background__' &&
-      o.id !== '__debug_overlay__'
+      o.id !== '__debug_overlay__' &&
+      o.id !== '__safe_zone_guide__'
   )
   return JSON.stringify({ version: '1', objects })
 }
@@ -168,6 +190,29 @@ function serializeUserObjects(canvas: Canvas): string {
 export function saveViewState(zone: string): void {
   if (!fabricCanvas) return
   setViewState(zone, serializeUserObjects(fabricCanvas))
+}
+
+function setupTextboxScalingBehavior(textObj: Textbox): void {
+  const syncTextboxScalingToWidth = () => {
+    if ((textObj.scaleX && textObj.scaleX !== 1) || (textObj.scaleY && textObj.scaleY !== 1)) {
+      const currentScale = textObj.scaleX ?? 1
+      const newWidth = Math.max(textObj.dynamicMinWidth || 20, (textObj.width ?? 100) * currentScale)
+      textObj.set({
+        width: newWidth,
+        scaleX: 1,
+        scaleY: 1,
+      })
+      textObj.initDimensions()
+      textObj.setCoords()
+      fabricCanvas?.requestRenderAll()
+    }
+  }
+
+  textObj.on('scaling', syncTextboxScalingToWidth)
+  textObj.on('resizing', () => {
+    textObj.initDimensions()
+    textObj.setCoords()
+  })
 }
 
 export async function loadViewState(zone: string): Promise<void> {
@@ -180,6 +225,15 @@ export async function loadViewState(zone: string): Promise<void> {
   const revived = (await util.enlivenObjects(objects)) as FabricObject[]
 
   for (const obj of revived) {
+    if ((obj as any).lockRotation) {
+      obj.setControlVisible('mtr', false)
+    }
+    if (obj instanceof Textbox || (obj as any).type === 'textbox') {
+      setupTextboxScalingBehavior(obj as Textbox)
+    }
+    if (!(obj as any).id) {
+      ;(obj as any).id = generateLayerId()
+    }
     fabricCanvas.add(obj)
   }
   fabricCanvas.discardActiveObject()
@@ -225,8 +279,62 @@ export async function switchView(
   if (signal?.aborted) return
 
   reapplyAllClips(category, colorHex, toZone)
+  updateSafeZoneGuide(toZone)
 }
 
+// ── Safe Zone Guide (Selalu Terlihat) ───────────────────────────
+
+let safeZoneGuide: Rect | null = null
+
+export function updateSafeZoneGuide(zone?: string): void {
+  if (!fabricCanvas) return
+
+  if (safeZoneGuide) {
+    fabricCanvas.remove(safeZoneGuide)
+    safeZoneGuide = null
+  }
+
+  const currentZone = zone ?? getActiveZone()
+  const area = getPrintAreaForZone(currentZone)
+  if (!area) {
+    fabricCanvas.requestRenderAll()
+    return
+  }
+
+  safeZoneGuide = new Rect({
+    left: area.x,
+    top: area.y,
+    width: area.width,
+    height: area.height,
+    originX: 'left',
+    originY: 'top',
+    fill: 'transparent',
+    stroke: 'rgba(100, 116, 139, 0.5)', // Garis putus-putus tipis abu-abu kontras tapi tenang
+    strokeWidth: 1.5,
+    strokeDashArray: [6, 4],
+    selectable: false,
+    evented: false,
+    hasControls: false,
+    hasBorders: false,
+    lockMovementX: true,
+    lockMovementY: true,
+    lockRotation: true,
+    lockScalingX: true,
+    lockScalingY: true,
+    id: '__safe_zone_guide__',
+    name: 'Safe Zone Guide',
+    hoverCursor: 'default',
+  })
+
+  fabricCanvas.add(safeZoneGuide)
+  // Tempatkan tepat di atas background garment agar tidak menutupi objek user
+  const bg = fabricCanvas.getObjects().find((o) => (o as any).isBackground)
+  if (bg) {
+    const bgIdx = fabricCanvas.getObjects().indexOf(bg)
+    fabricCanvas.moveObjectTo(safeZoneGuide, bgIdx + 1)
+  }
+  fabricCanvas.requestRenderAll()
+}
 
 // ── Debug Overlay ────────────────────────────────────────────────
 
@@ -242,6 +350,8 @@ export function showDebugOverlay(area: PrintArea): void {
     top: area.y,
     width: area.width,
     height: area.height,
+    originX: 'left',
+    originY: 'top',
     fill: 'rgba(255, 0, 0, 0.15)',
     stroke: '#ff0000',
     strokeWidth: 2,
@@ -292,7 +402,7 @@ export function isDebugOverlayActive(): boolean {
 // Per-zone target box (on-canvas px) that the garment should fit within,
 // centered. These mirror the black variant's footprint (the "pas" reference)
 // so every color & zone renders the garment at a consistent relative size.
-const GARMENT_TARGET_BOX_BY_ZONE: Record<string, { width: number; height: number }> = {
+export const GARMENT_TARGET_BOX_BY_ZONE: Record<string, { width: number; height: number }> = {
   front: { width: 398, height: 513 },
   back: { width: 358, height: 503 },
   left: { width: 196, height: 555 },
@@ -411,6 +521,7 @@ export async function loadMockupImage(url: string, zone: string = 'front'): Prom
 
   fabricCanvas.add(img)
   fabricCanvas.sendObjectToBack(img)
+  updateSafeZoneGuide(zone)
   fabricCanvas.backgroundColor = 'transparent'
   fabricCanvas.requestRenderAll()
   return true
@@ -443,6 +554,7 @@ export async function addImageToCanvas(
   view: string = 'front',
   category?: string,
   colorHex?: string,
+  sourceFileName?: string,
 ): Promise<void> {
   if (!fabricCanvas) {
     console.error('[canvas-engine] No canvas instance — upload ignored')
@@ -460,6 +572,9 @@ export async function addImageToCanvas(
   const canvasW = fabricCanvas.getWidth()
   const canvasH = fabricCanvas.getHeight()
   layerCounter++
+  const cleanName = sourceFileName ? sourceFileName.replace(/\.[^/.]+$/, '') : `Image ${layerCounter}`
+
+  const layerId = generateLayerId()
   img.set({
     left: canvasW / 2,
     top: canvasH / 2,
@@ -468,21 +583,133 @@ export async function addImageToCanvas(
     selectable: true,
     hasControls: true,
     hasBorders: true,
-    id: `layer-${layerCounter}`,
-    name: `Image ${layerCounter}`,
+    id: layerId,
+    name: cleanName,
+    sourceFileName: cleanName,
     view,
+    // Rendering solid normal (Photoshop/Figma layer stacking)
+    // Lock rotation: hilangkan kontrol putar (lebih presisi + hemat kalkulasi
+    // matriks di HP). Jangan terapkan ke background — hanya objek user.
+    lockRotation: true,
   })
 
-  if (category && colorHex) {
-    const area = getPrintArea(category, colorHex, view)
-    if (area) {
-      applyPrintAreaClip(img, area)
-    }
+  // Sembunyikan titik rotasi (handle hijau Fabric='mtr') di kontrol objek.
+  img.setControlVisible('mtr', false)
+
+  const area = (category && colorHex ? getPrintArea(category, colorHex, view) : null) ?? getPrintAreaForZone(view)
+  if (area) {
+    applyPrintAreaClip(img, area)
   }
 
   fabricCanvas.add(img)
   fabricCanvas.setActiveObject(img)
   fabricCanvas.requestRenderAll()
+}
+
+function estimateTextWidth(text: string, fontSize: number, fontFamily: string): number {
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.font = `${fontSize}px "${fontFamily}", sans-serif`
+      const lines = text.split('\n')
+      let maxLineWidth = 0
+      for (const line of lines) {
+        const w = ctx.measureText(line).width
+        if (w > maxLineWidth) maxLineWidth = w
+      }
+      return maxLineWidth
+    }
+  }
+  const lines = text.split('\n')
+  const longest = Math.max(...lines.map(l => l.length), 1)
+  return longest * fontSize * 0.6
+}
+
+export async function addTextToCanvas(
+  text: string,
+  fontFamily: string = 'Inter',
+  fill: string = '#000000',
+  view: string = 'front',
+  category?: string,
+  colorHex?: string
+): Promise<void> {
+  if (!fabricCanvas) {
+    console.error('[canvas-engine] No canvas instance — add text ignored')
+    return
+  }
+
+  try {
+    if (typeof document !== 'undefined' && document.fonts) {
+      await document.fonts.load(`16px "${fontFamily}"`)
+    }
+  } catch {
+    // proceed even if font load API throws
+  }
+
+  const canvasW = fabricCanvas.getWidth()
+  const canvasH = fabricCanvas.getHeight()
+
+  const area = (category && colorHex ? getPrintArea(category, colorHex, view) : null) ?? getPrintAreaForZone(view)
+  const maxSafeWidth = area ? Math.max(area.width - 24, 100) : 180
+  const measuredWidth = estimateTextWidth(text || 'Teks Baru', 28, fontFamily)
+  // Dynamic initial width: fit text + small padding, capped at safe max width (so long text auto-wraps inside Safe_Zone)
+  const initialWidth = Math.min(Math.max(80, Math.ceil(measuredWidth + 16)), maxSafeWidth)
+  const layerId = generateLayerId()
+
+  const textObj = new Textbox(text || 'Teks Baru', {
+    left: canvasW / 2,
+    top: canvasH / 2,
+    originX: 'center',
+    originY: 'center',
+    fontFamily: fontFamily,
+    fontSize: 28,
+    fill: fill,
+    textAlign: 'center',
+    width: initialWidth,
+    selectable: true,
+    hasControls: true,
+    hasBorders: true,
+    id: layerId,
+    name: text || `Teks ${layerCounter}`,
+    view,
+    lockRotation: true,
+    splitByGrapheme: false,
+  })
+
+  textObj.setControlVisible('mtr', false)
+  setupTextboxScalingBehavior(textObj)
+
+  if (area) {
+    applyPrintAreaClip(textObj, area)
+  }
+
+  fabricCanvas.add(textObj)
+  textObj.setCoords()
+  fabricCanvas.setActiveObject(textObj)
+  fabricCanvas.requestRenderAll()
+}
+
+export function updateSelectedText(updates: { text?: string; fontFamily?: string; fill?: string }): void {
+  if (!fabricCanvas) return
+  const active = fabricCanvas.getActiveObject()
+  if (!active || !(active instanceof Textbox || (active as any).type === 'textbox')) return
+
+  if (updates.text !== undefined) {
+    ;(active as any).set('text', updates.text)
+    ;(active as any).set('name', updates.text)
+    ;(active as any).initDimensions?.()
+  }
+  if (updates.fontFamily !== undefined) {
+    ;(active as any).set('fontFamily', updates.fontFamily)
+    ;(active as any).initDimensions?.()
+  }
+  if (updates.fill !== undefined) {
+    ;(active as any).set('fill', updates.fill)
+  }
+  active.setCoords()
+  fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target: active })
 }
 
 export function deleteSelectedObject(): void {
@@ -501,6 +728,8 @@ export interface LayerData {
   type: 'image' | 'text' | 'clipart'
   visible: boolean
   locked: boolean
+  sourceFileName?: string
+  text?: string
 }
 
 function classifyType(obj: FabricObject): 'image' | 'text' | 'clipart' {
@@ -512,78 +741,128 @@ function classifyType(obj: FabricObject): 'image' | 'text' | 'clipart' {
 export function getLayerObjects(): LayerData[] {
   if (!fabricCanvas) return []
   return fabricCanvas.getObjects()
-    .filter(obj => !(obj as any).isBackground && (obj as any).id !== '__debug_overlay__')
-    .map(obj => ({
-      id: (obj as any).id ?? '',
-      name: (obj as any).name ?? 'Object',
-      type: classifyType(obj),
-      visible: obj.visible !== false,
-      locked: obj.selectable === false,
-    }))
+    .filter(isUserObject)
+    // Balik urutan: objek paling atas (z-index tertinggi) tampil pertama di panel
+    .reverse()
+    .map(obj => {
+      const typed = obj as any
+      const type = classifyType(obj)
+      let displayName = typed.name || 'Objek'
+
+      if (type === 'image') {
+        displayName = typed.sourceFileName || typed.name || 'Gambar'
+      } else if (type === 'text') {
+        // Selalu ambil dari typed.text (isi aktual) bukan typed.name (bisa stale)
+        const rawText = typed.text ?? typed.name ?? 'Teks'
+        const singleLine = rawText.replace(/\r?\n/g, ' ').trim()
+        displayName = singleLine.length > 20 ? `${singleLine.slice(0, 20)}...` : singleLine || 'Teks'
+      }
+
+      return {
+        id: typed.id ?? '',
+        name: displayName,
+        type,
+        visible: obj.visible !== false,
+        locked: obj.selectable === false,
+        sourceFileName: typed.sourceFileName,
+        text: typed.text,
+      }
+    })
 }
 
 export function setLayerVisibility(id: string, visible: boolean): void {
   if (!fabricCanvas) return
-  const obj = fabricCanvas.getObjects().find(o => (o as any).id === id)
-  if (!obj || (obj as any).isBackground || (obj as any).id === '__debug_overlay__') return
-  obj.set('visible', visible)
+  const obj = fabricCanvas.getObjects().find(o => isUserObject(o) && (o as any).id === id)
+  if (!obj) return
+  obj.set({
+    visible,
+    evented: visible && (obj as any).selectable !== false,
+  })
+  if (!visible && fabricCanvas.getActiveObject() === obj) {
+    fabricCanvas.discardActiveObject()
+  }
   fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target: obj })
 }
 
 export function setLayerLocked(id: string, locked: boolean): void {
   if (!fabricCanvas) return
-  const obj = fabricCanvas.getObjects().find(o => (o as any).id === id)
-  if (!obj || (obj as any).isBackground || (obj as any).id === '__debug_overlay__') return
+  const obj = fabricCanvas.getObjects().find(o => isUserObject(o) && (o as any).id === id)
+  if (!obj) return
   obj.set({
     selectable: !locked,
-    evented: !locked,
+    evented: !locked && obj.visible !== false,
   })
+  if (locked && fabricCanvas.getActiveObject() === obj) {
+    fabricCanvas.discardActiveObject()
+  }
   fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target: obj })
 }
 
 export function deleteLayerById(id: string): void {
   if (!fabricCanvas) return
-  const obj = fabricCanvas.getObjects().find(o => (o as any).id === id)
-  if (!obj || (obj as any).isBackground || (obj as any).id === '__debug_overlay__') return
-  fabricCanvas.remove(obj)
+  const obj = fabricCanvas.getObjects().find(o => isUserObject(o) && (o as any).id === id)
+  if (!obj) return
   if (fabricCanvas.getActiveObject() === obj) {
     fabricCanvas.discardActiveObject()
   }
+  fabricCanvas.remove(obj)
   fabricCanvas.requestRenderAll()
 }
 
 export function moveLayerUp(id: string): void {
   if (!fabricCanvas) return
-  const objects = fabricCanvas.getObjects().filter(o => !(o as any).isBackground && (o as any).id !== '__debug_overlay__')
+  const objects = fabricCanvas.getObjects().filter(isUserObject)
   const index = objects.findIndex(o => (o as any).id === id)
   if (index < 0 || index >= objects.length - 1) return
   const target = objects[index]
   const next = objects[index + 1]
   const canvasObjects = fabricCanvas.getObjects()
-  const targetIdx = canvasObjects.indexOf(target)
   const nextIdx = canvasObjects.indexOf(next)
   fabricCanvas.moveObjectTo(target, nextIdx)
   fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target })
 }
 
 export function moveLayerDown(id: string): void {
   if (!fabricCanvas) return
-  const objects = fabricCanvas.getObjects().filter(o => !(o as any).isBackground && (o as any).id !== '__debug_overlay__')
+  const objects = fabricCanvas.getObjects().filter(isUserObject)
   const index = objects.findIndex(o => (o as any).id === id)
   if (index <= 0) return
   const target = objects[index]
   const prev = objects[index - 1]
   const canvasObjects = fabricCanvas.getObjects()
-  const targetIdx = canvasObjects.indexOf(target)
   const prevIdx = canvasObjects.indexOf(prev)
   fabricCanvas.moveObjectTo(target, prevIdx)
   fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target })
+}
+
+export function reorderLayer(draggedId: string, targetId: string): void {
+  if (!fabricCanvas || draggedId === targetId) return
+  const objects = fabricCanvas.getObjects().filter(isUserObject)
+  const dragged = objects.find(o => (o as any).id === draggedId)
+  const target = objects.find(o => (o as any).id === targetId)
+  if (!dragged || !target) return
+
+  const canvasObjects = fabricCanvas.getObjects()
+  const targetCanvasIdx = canvasObjects.indexOf(target)
+  if (targetCanvasIdx < 0) return
+
+  fabricCanvas.moveObjectTo(dragged, targetCanvasIdx)
+  fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target: dragged })
 }
 
 export function selectLayerById(id: string): void {
   if (!fabricCanvas) return
-  const obj = fabricCanvas.getObjects().find(o => (o as any).id === id)
-  if (!obj || (obj as any).isBackground || (obj as any).id === '__debug_overlay__') return
-  fabricCanvas.setActiveObject(obj)
+  const obj = fabricCanvas.getObjects().find(o => isUserObject(o) && (o as any).id === id)
+  if (!obj) return
+  if (obj.selectable !== false) {
+    fabricCanvas.setActiveObject(obj)
+  } else {
+    fabricCanvas.discardActiveObject()
+  }
   fabricCanvas.requestRenderAll()
 }

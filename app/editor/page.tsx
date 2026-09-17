@@ -1,27 +1,42 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+/**
+ * EditorPage — SHELL tipis (milik FE1).
+ *
+ * - Fetch /api/quote di sini (KEPUTUSAN 1), pass ke CanvasEditor & LeftPanel
+ *   sebagai props. Canvas TIDAK pernah fetch API.
+ * - Semua state NEGO-PAYMENT diextract ke hook useNegotiation()
+ * - Semua state CANVAS (color/size/zoom) di useCanvasStore()
+ * - CanvasEditor di-dynamic-import (ssr:false) — modul CSR murni
+ * - CanvasBlueprint diterima via onDesignComplete callback, disimpan ke
+ *   localStorage untuk dibaca halaman Checkout.
+ */
+
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import Script from 'next/script'
 import Header from '@/components/header'
 import LeftPanel from '@/components/left-panel'
-import Canvas from '@/components/canvas'
 import RightPanel from '@/components/right-panel'
 import MobileBottomNav from '@/components/mobile-bottom-nav'
 import MobileLeftPanelSheet from '@/components/mobile-left-panel-sheet'
 import MobileRightPanelSheet from '@/components/mobile-right-panel-sheet'
 import { useDesignStore } from '@/store/design-store'
+import { useCanvasStore } from '@/features/canvas/store/useCanvasStore'
+import { useNegotiation } from '@/app/hooks/useNegotiation'
+import { saveBlueprint, BLUEPRINT_STORAGE_KEY } from '@/features/canvas/utils/exportHelpers'
 import type { PriceQuote } from '@/types/pricing'
-import type { ChatMessage } from '@/types/chat'
-import type { NegotiateResponse, SessionInitResponse, SessionStatusResponse } from '@/types/api'
+import type { CanvasBlueprint } from '@/features/canvas/types/blueprint'
+
+const CanvasEditor = dynamic(
+  () => import('@/features/canvas/components/CanvasEditor'),
+  { ssr: false, loading: () => <p className="flex-1 flex items-center justify-center text-gray-500">Memuat Engine Desain...</p> }
+)
 
 export default function EditorPage() {
-  const router = useRouter()
   const [mobileLeftPanelOpen, setMobileLeftPanelOpen] = useState(false)
   const [mobileRightPanelOpen, setMobileRightPanelOpen] = useState(false)
   const [activeMenu, setActiveMenu] = useState('product')
-  const [selectedColor, setSelectedColor] = useState('#FFFFFF')
-  const [selectedSize, setSelectedSize] = useState('M')
   const [quantities, setQuantities] = useState({
     S: 0,
     M: 0,
@@ -32,332 +47,94 @@ export default function EditorPage() {
     '4XL': 0,
     '5XL': 0,
   })
-  const [rightPanelMode, setRightPanelMode] = useState<'review' | 'negotiate'>(
-    'review'
-  )
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-  const [currentMessage, setCurrentMessage] = useState('')
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [currentPrice, setCurrentPrice] = useState(105000)
-  const [currentTier, setCurrentTier] = useState(0)
-  const [agreedDiscount, setAgreedDiscount] = useState<number | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
-  const [zoomLevel, setZoomLevel] = useState(100)
   const [quote, setQuote] = useState<PriceQuote | null>(null)
+
+  const selectedProductId = useDesignStore((s) => s.selectedProductId)
+  const selectedCategory = useDesignStore((s) => s.selectedCategory)
+
+  const selectedColor = useCanvasStore((s) => s.selectedColor)
+  const selectedSize = useCanvasStore((s) => s.selectedSize)
+  const zoomLevel = useCanvasStore((s) => s.zoomLevel)
+  const zoomIn = useCanvasStore((s) => s.zoomIn)
+  const zoomOut = useCanvasStore((s) => s.zoomOut)
+  const setSelectedColor = useCanvasStore((s) => s.setSelectedColor)
+  const setSelectedSize = useCanvasStore((s) => s.setSelectedSize)
 
   const sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL']
   const activeColors = ['#FFFFFF', '#000000']
   const colors = [
-    '#000000',
-    '#FFFFFF',
-    '#808080',
-    '#C0C0C0',
-    '#FF0000',
-    '#00FF00',
-    '#0000FF',
-    '#FFFF00',
-    '#FFA500',
-    '#800080',
-    '#FFC0CB',
-    '#A52A2A',
-    '#008080',
-    '#FFD700',
-    '#4B0082',
-    '#FF69B4',
-    '#1E90FF',
-    '#32CD32',
-    '#FF4500',
-    '#9370DB',
-    '#00CED1',
-    '#FF1493',
-    '#00FA9A',
-    '#DC143C',
-    '#7FFF00',
-    '#8B4513',
-    '#FF8C00',
-    '#228B22',
-    '#4169E1',
-    '#FF00FF',
-    '#00BFFF',
-    '#F0E68C',
+    '#000000', '#FFFFFF', '#808080', '#C0C0C0', '#FF0000', '#00FF00', '#0000FF',
+    '#FFFF00', '#FFA500', '#800080', '#FFC0CB', '#A52A2A', '#008080', '#FFD700',
+    '#4B0082', '#FF69B4', '#1E90FF', '#32CD32', '#FF4500', '#9370DB', '#00CED1',
+    '#FF1493', '#00FA9A', '#DC143C', '#7FFF00', '#8B4513', '#FF8C00', '#228B22',
+    '#4169E1', '#FF00FF', '#00BFFF', '#F0E68C',
   ]
   const disabledColors = colors.filter(c => !activeColors.includes(c))
 
   const basePrice = quote?.basePrice ?? 0
   const logoPrice = quote?.logoPrice ?? 0
   const textPrice = quote?.textPrice ?? 0
+  const unitPrice = quote?.unitPrice ?? 0
 
   const totalQty = Object.values(quantities).reduce((a, b) => a + b, 0)
-  const unitPrice = quote?.unitPrice ?? 0
-  const subtotal = currentPrice
+  const subtotal = unitPrice
   const total = subtotal * totalQty
 
-  useEffect(() => {
-    const productId = useDesignStore.getState().selectedProductId
-    const category = useDesignStore.getState().selectedCategory
+  const {
+    rightPanelMode,
+    chatMessages,
+    currentMessage,
+    currentPrice,
+    currentTier,
+    agreedDiscount,
+    isLoading,
+    isProcessingPayment,
+    setCurrentMessage,
+    handleModeChange,
+    handleSendMessage,
+    handlePayment,
+    handleSimulateCheckout,
+  } = useNegotiation({
+    productId: selectedProductId,
+    category: selectedCategory,
+    color: selectedColor,
+    totalQty,
+    unitPrice,
+  })
 
+  const [isQuoteLoading, setIsQuoteLoading] = useState(true)
+
+  // KEPUTUSAN 1: Parent fetch /api/quote, pass ke Canvas & LeftPanel sebagai props.
+  useEffect(() => {
     let cancelled = false
-    fetch(`/api/quote?productId=${encodeURIComponent(productId)}&category=${encodeURIComponent(category)}`)
+    setIsQuoteLoading(true)
+    fetch(`/api/quote?productId=${encodeURIComponent(selectedProductId)}&category=${encodeURIComponent(selectedCategory)}`)
       .then(res => (res.ok ? res.json() : Promise.reject(new Error('quote failed'))))
       .then((data: PriceQuote) => {
-        if (!cancelled) setQuote(data)
+        if (!cancelled) {
+          setQuote(data)
+          setIsQuoteLoading(false)
+        }
       })
       .catch(() => {
-        if (!cancelled) setQuote(null)
+        if (!cancelled) {
+          setQuote(null)
+          setIsQuoteLoading(false)
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [])
-
-  const initSession = useCallback(async (force = false) => {
-    if (!force && sessionId) return
-
-    try {
-      const productId = useDesignStore.getState().selectedProductId
-      const category = useDesignStore.getState().selectedCategory
-
-      const res = await fetch('/api/session/init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId,
-          category,
-          color: selectedColor,
-          quantities: totalQty,
-        }),
-      })
-
-      if (!res.ok) throw new Error('Failed to init session')
-
-      const data = (await res.json()) as SessionInitResponse
-      setSessionId(data.sessionId)
-      setCurrentPrice(data.currentPrice)
-      setCurrentTier(data.tier)
-      setChatMessages([{
-        id: 1,
-        type: 'ai',
-        message: data.initialMessage,
-      }])
-      localStorage.setItem('negotiationSessionId', data.sessionId)
-      localStorage.setItem('negotiationSessionFingerprint', JSON.stringify({
-        quantity: totalQty,
-        productId,
-        color: selectedColor,
-      }))
-    } catch {
-      setChatMessages([{
-        id: 1,
-        type: 'ai',
-        message: `Halo kak! 👋 Terima kasih sudah tertarik dengan kaos custom Ashirah. Untuk pesanan ${totalQty} pcs (${selectedColor}), harga normalnya Rp ${unitPrice.toLocaleString('id-ID')}/pcs. Ada yang bisa saya bantu? 😊`,
-      }])
-    }
-  }, [sessionId, totalQty, selectedColor, unitPrice])
-
-  const restoreSession = useCallback(async (sid: string) => {
-    try {
-      const res = await fetch('/api/session/status', {
-        headers: { 'x-session-id': sid },
-      })
-
-      if (!res.ok) {
-        localStorage.removeItem('negotiationSessionId')
-        localStorage.removeItem('negotiationSessionFingerprint')
-        return false
-      }
-
-      const data = (await res.json()) as SessionStatusResponse
-      setSessionId(data.sessionId)
-      setCurrentPrice(data.currentPrice)
-      setCurrentTier(data.tier)
-      setAgreedDiscount(data.agreedDiscount)
-      setChatMessages(data.messages)
-      return true
-    } catch {
-      localStorage.removeItem('negotiationSessionId')
-      localStorage.removeItem('negotiationSessionFingerprint')
-      return false
-    }
-  }, [])
-
-  useEffect(() => {
-    const savedSessionId = localStorage.getItem('negotiationSessionId')
-    if (savedSessionId) {
-      restoreSession(savedSessionId)
-    }
-  }, [restoreSession])
-
-  const handleModeChange = useCallback(async (mode: 'review' | 'negotiate') => {
-    setRightPanelMode(mode)
-    if (mode !== 'negotiate') return
-
-    let needsNewSession = !sessionId
-
-    if (sessionId) {
-      const savedFingerprint = JSON.parse(localStorage.getItem('negotiationSessionFingerprint') || 'null')
-      const currentProductId = useDesignStore.getState().selectedProductId
-      const paramsMatch = savedFingerprint
-        && savedFingerprint.quantity === totalQty
-        && savedFingerprint.productId === currentProductId
-        && savedFingerprint.color === selectedColor
-
-      if (!paramsMatch) {
-        setSessionId(null)
-        setAgreedDiscount(null)
-        setChatMessages([])
-        setCurrentTier(0)
-        setCurrentPrice(unitPrice)
-        localStorage.removeItem('negotiationSessionId')
-        localStorage.removeItem('negotiationSessionFingerprint')
-        needsNewSession = true
-      }
-    }
-
-    if (needsNewSession && chatMessages.length === 0) {
-      setChatMessages([{
-        id: 1,
-        type: 'ai',
-        message: '',
-        isLoading: true,
-      }])
-      await initSession(true)
-    }
-  }, [sessionId, chatMessages.length, initSession, totalQty, selectedColor, unitPrice])
+  }, [selectedProductId, selectedCategory])
 
   const handleQuantityChange = (size: string, value: number) => {
     setQuantities(prev => ({ ...prev, [size]: value }))
   }
 
-  const handleSendMessage = async () => {
-    if (!currentMessage.trim() || isLoading) return
-    if (!sessionId) {
-      await initSession()
-      return
-    }
-
-    const userMsg = {
-      id: chatMessages.length + 1,
-      type: 'user' as const,
-      message: currentMessage,
-    }
-
-    setChatMessages(prev => [...prev, userMsg])
-    setCurrentMessage('')
-    setIsLoading(true)
-
-    try {
-      const res = await fetch('/api/negotiate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-id': sessionId,
-        },
-        body: JSON.stringify({ message: currentMessage }),
-      })
-
-      if (!res.ok) throw new Error('Failed to send message')
-
-      const data = (await res.json()) as NegotiateResponse
-
-      setChatMessages(data.messages)
-      setCurrentPrice(data.currentPrice)
-      setCurrentTier(data.tier)
-      if (data.agreedDiscount !== null && data.agreedDiscount !== undefined) {
-        setAgreedDiscount(data.agreedDiscount)
-      }
-    } catch {
-      setChatMessages(prev => [
-        ...prev,
-        {
-          id: prev.length + 1,
-          type: 'ai',
-          message: 'Maaf kak, ada gangguan sedikit. Bisa ulangi pesannya? 🙏',
-        },
-      ])
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleZoomIn = () => {
-    setZoomLevel(prev => Math.min(prev + 10, 200))
-  }
-
-  const handleZoomOut = () => {
-    setZoomLevel(prev => Math.max(prev - 10, 50))
-  }
-
-  const handlePayment = async () => {
-    if (!sessionId || agreedDiscount === null || isProcessingPayment) return
-
-    setIsProcessingPayment(true)
-    try {
-      const res = await fetch('/api/payment/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Payment init failed' }))
-        throw new Error(err.error || 'Payment init failed')
-      }
-
-      const { token, orderId } = await res.json()
-
-      const snap = (window as any).snap
-      if (!snap) {
-        alert('Sistem pembayaran belum siap. Silakan refresh halaman.')
-        return
-      }
-
-      snap.pay(token, {
-        onSuccess: (result: any) => {
-          console.log('[AshirahBot] Payment success:', result)
-          const oid = result.order_id || orderId || ''
-          router.push(`/payment/success?order_id=${encodeURIComponent(oid)}`)
-        },
-        onPending: (result: any) => {
-          console.log('[AshirahBot] Payment pending:', result)
-          const oid = result.order_id || orderId || ''
-          router.push(`/payment/success?order_id=${encodeURIComponent(oid)}`)
-        },
-        onError: (result: any) => {
-          console.error('[AshirahBot] Payment error:', result)
-          alert('Pembayaran gagal. Silakan coba lagi.')
-        },
-      })
-    } catch (error) {
-      console.error('[AshirahBot] Payment init failed:', error)
-      alert(error instanceof Error ? error.message : 'Gagal memulai pembayaran. Silakan coba lagi.')
-    } finally {
-      setIsProcessingPayment(false)
-    }
-  }
-
-  // ── Take-Home Test seam: "Simulasi Checkout" ─────────────────────────
-  // Jalan pintas dev-only untuk mencapai /payment/success TANPA negosiasi AI
-  // maupun Midtrans (zero env vars), supaya fitur Vendor Blueprint bisa
-  // dirancang & diuji lebih dulu. Alur pembayaran asli (handlePayment) tetap
-  // utuh di atas; jangan ragu untuk menggabungkan keduanya saat menerapkan
-  // snapshotAllZones() di callback onSuccess snap.pay.
-  const handleSimulateCheckout = () => {
-    if (isProcessingPayment) return
-    setIsProcessingPayment(true)
-    try {
-      // TODO (Take-Home Test Task 1 + 2): panggil snapshotAllZones() dari
-      // lib/ui/blueprint-extractor.ts SEBELUM navigasi, lalu simpan hasilnya
-      // ke sessionStorage pada key 'vendor_blueprint' (lihat konstanta
-      // BLUEPRINT_STORAGE_KEY di components/vendor-blueprint-modal.tsx).
-      // Halaman /payment/success akan membuka modal blueprint otomatis jika
-      // key tersebut berisi snapshot.
-      const orderId = `SIM-${Date.now()}`
-      router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
-    } finally {
-      setIsProcessingPayment(false)
-    }
+  const handleDesignComplete = (blueprint: CanvasBlueprint) => {
+    saveBlueprint(blueprint)
+    console.log('[EditorPage] Blueprint saved to localStorage:', BLUEPRINT_STORAGE_KEY)
   }
 
   return (
@@ -386,10 +163,21 @@ export default function EditorPage() {
           logoPrice={logoPrice}
           textPrice={textPrice}
           subtotal={subtotal}
+          isQuoteLoading={isQuoteLoading}
         />
 
-        {/* CANVAS — single instance, avoids singleton conflict */}
-        <Canvas selectedColor={selectedColor} zoomLevel={zoomLevel} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+        <CanvasEditor
+          selectedColor={selectedColor}
+          quote={quote ?? {
+            productId: selectedProductId,
+            category: selectedCategory,
+            basePrice: 0,
+            logoPrice: 0,
+            textPrice: 0,
+            unitPrice: 0,
+          }}
+          onDesignComplete={handleDesignComplete}
+        />
 
         <RightPanel
           mode={rightPanelMode}
@@ -415,16 +203,8 @@ export default function EditorPage() {
           isProcessingPayment={isProcessingPayment}
           onSimulateCheckout={handleSimulateCheckout}
           isSimulatingCheckout={isProcessingPayment}
+          isQuoteLoading={isQuoteLoading}
         />
-      </div>
-
-      {/* Mobile Layout — reuses the same Canvas above; only panels differ */}
-      <div className="md:hidden flex-1 flex flex-col overflow-hidden pb-16">
-        {/* Canvas is rendered once in the desktop layout above and shared.
-            On mobile the outer wrapper is hidden, so this slot is intentionally
-            empty — do NOT add a second <Canvas> here (it would create two
-            Fabric instances fighting over the same singleton). */}
-
       </div>
 
       {/* Mobile Bottom Navigation */}
@@ -437,8 +217,8 @@ export default function EditorPage() {
           }}
           onTogglePricing={() => setMobileRightPanelOpen(!mobileRightPanelOpen)}
           zoomLevel={zoomLevel}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
         />
       </div>
 

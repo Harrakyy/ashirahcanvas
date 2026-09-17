@@ -12,7 +12,7 @@ interface NegotiateModeProps {
   currentPrice: number
   totalQty: number
   total: number
-  chatEndRef: React.RefObject<HTMLDivElement>
+  chatEndRef: React.RefObject<HTMLDivElement | null>
   isLoading?: boolean
   currentTier?: number
   agreedDiscount?: number | null

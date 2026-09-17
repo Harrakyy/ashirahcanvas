@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import PriceTicker from '@/features/canvas/components/PriceTicker'
 
 interface ReviewModeProps {
   basePrice: number
@@ -13,6 +14,7 @@ interface ReviewModeProps {
   onCustomNow: () => void
   onSimulateCheckout?: () => void
   isSimulatingCheckout?: boolean
+  isQuoteLoading?: boolean
 }
 
 export default function ReviewMode({
@@ -28,6 +30,7 @@ export default function ReviewMode({
   onCustomNow,
   onSimulateCheckout,
   isSimulatingCheckout = false,
+  isQuoteLoading = false,
 }: ReviewModeProps) {
   return (
     <>
@@ -38,48 +41,28 @@ export default function ReviewMode({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Price Breakdown */}
-        <div className="space-y-3 bg-gray-50 p-4 rounded-lg">
-          <h3 className="text-sm font-semibold text-gray-900">Rincian Harga</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-700">Harga per pcs:</span>
-              <span className="font-medium text-gray-900">
-                Rp {basePrice.toLocaleString('id-ID')}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>+ Logo:</span>
-              <span>Rp {logoPrice.toLocaleString('id-ID')}</span>
-            </div>
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>+ Teks tambahan:</span>
-              <span>Rp {textPrice.toLocaleString('id-ID')}</span>
-            </div>
-            <div className="pt-2 border-t border-gray-200 flex justify-between">
-              <span className="font-medium text-gray-900">Subtotal per pcs:</span>
-              <span className="font-bold text-gray-900">
-                Rp {subtotal.toLocaleString('id-ID')}
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* Price Breakdown Modularized Component */}
+        <PriceTicker
+          basePrice={basePrice}
+          logoPrice={logoPrice}
+          textPrice={textPrice}
+          subtotal={subtotal}
+          isQuoteLoading={isQuoteLoading}
+        />
 
         {/* Quantity Table */}
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-gray-900">Jumlah Pesanan</h3>
           <div className="space-y-2">
-            {sizes.map(size => (
+            {sizes.map((size) => (
               <div key={size} className="flex items-center justify-between gap-3">
                 <span className="text-sm text-gray-700 flex-1">{size}</span>
                 <input
                   type="number"
                   min="0"
                   value={quantities[size]}
-                  onChange={e =>
-                    onQuantityChange(size, parseInt(e.target.value) || 0)
-                  }
-                  className="w-20 px-3 py-2 bg-white border-2 border-gray-300 rounded-md text-sm text-center font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-950 focus:border-blue-950 transition"
+                  onChange={(e) => onQuantityChange(size, parseInt(e.target.value) || 0)}
+                  className="w-20 px-3 py-2 bg-white border-2 border-gray-300 rounded-md text-sm text-center font-medium text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-blue-950 focus:border-blue-950 transition"
                 />
               </div>
             ))}

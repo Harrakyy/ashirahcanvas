@@ -34,6 +34,7 @@ interface LeftPanelProps {
   logoPrice: number
   textPrice: number
   subtotal: number
+  isQuoteLoading?: boolean
 }
 
 const menuItems = [
@@ -61,11 +62,12 @@ export default function LeftPanel({
   logoPrice,
   textPrice,
   subtotal,
+  isQuoteLoading = false,
 }: LeftPanelProps) {
   return (
     <div className="flex mt-16 h-[calc(100vh-64px)]">
-      {/* Icon Rail */}
-      <div className="w-16 border-r border-gray-200 bg-gray-50 flex flex-col items-center py-4 gap-1">
+      {/* macOS Sidebar Icon Rail */}
+      <div className="w-16 border-r border-black/[0.06] bg-neutral-50/75 backdrop-blur-xl flex flex-col items-center py-3 gap-1.5 z-10">
         {menuItems.map(item => {
           const Icon = item.icon
           const isActive = activeMenu === item.id
@@ -73,14 +75,14 @@ export default function LeftPanel({
             <button
               key={item.id}
               onClick={() => onMenuChange(item.id)}
-              className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 w-12 h-12 rounded-xl transition-all duration-150 ${
                 isActive
-                  ? 'bg-white border-l-2 border-blue-950 text-blue-950'
-                  : 'text-gray-600 hover:bg-white'
+                  ? 'bg-white text-neutral-900 shadow-xs ring-1 ring-black/[0.06]'
+                  : 'text-neutral-500 hover:text-neutral-900 hover:bg-black/[0.04]'
               }`}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] text-center leading-tight">
+              <Icon className="w-4 h-4" />
+              <span className="text-[10px] font-medium text-center leading-tight">
                 {item.label.split(' ')[0]}
               </span>
             </button>
@@ -89,7 +91,7 @@ export default function LeftPanel({
       </div>
 
       {/* Detail Panel */}
-      <div className="w-80 border-r border-gray-200 bg-white overflow-y-auto flex flex-col">
+      <div className="w-80 border-r border-black/[0.06] bg-white/90 backdrop-blur-md overflow-y-auto flex flex-col">
         {activeMenu === 'product' && (
           <ProductDetails
             selectedColor={selectedColor}
@@ -103,6 +105,7 @@ export default function LeftPanel({
             logoPrice={logoPrice}
             textPrice={textPrice}
             subtotal={subtotal}
+            isQuoteLoading={isQuoteLoading}
           />
         )}
 

@@ -102,7 +102,14 @@ export default function HelpPanel() {
           </p>
         </div>
 
-        <button className="w-full px-4 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded-lg text-sm transition font-medium flex items-center justify-center gap-2">
+        <button
+          onClick={() => {
+            const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '6281234567890'
+            const text = encodeURIComponent('Halo, saya butuh bantuan terkait desain custom di Ashirah Apparel')
+            window.open(`https://wa.me/${phone}?text=${text}`, '_blank')
+          }}
+          className="w-full px-4 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded-lg text-sm transition font-medium flex items-center justify-center gap-2 shadow-sm"
+        >
           <MessageCircle className="w-4 h-4" />
           Chat dengan Tim Kami
         </button>
