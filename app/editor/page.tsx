@@ -270,11 +270,10 @@ export default function EditorPage() {
 
       <Script
         src={
-          process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === 'true'
-            ? 'https://app.midtrans.com/snap/snap.js'
-            : 'https://app.sandbox.midtrans.com/snap/snap.js'
+          process.env.NEXT_PUBLIC_DUITKU_IS_PRODUCTION === 'true'
+            ? 'https://app-prod.duitku.com/lib/js/duitku.js'
+            : 'https://app-sandbox.duitku.com/lib/js/duitku.js'
         }
-        data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
         strategy="lazyOnload"
       />
     </div>

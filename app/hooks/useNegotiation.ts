@@ -210,26 +210,29 @@ export function useNegotiation({
         throw new Error(err.error || 'Payment init failed')
       }
 
-      const { token, orderId } = await res.json()
+      const { reference, orderId } = await res.json()
 
-      const snap = (window as any).snap
-      if (!snap) {
+      const checkout = (window as any).checkout
+      if (!checkout) {
         alert('Sistem pembayaran belum siap. Silakan refresh halaman.')
         return
       }
 
-      snap.pay(token, {
-        onSuccess: (result: any) => {
+      checkout.process(reference, {
+        successEvent: (result: any) => {
           persistVendorBlueprint()
-          router.push(`/payment/success?order_id=${encodeURIComponent(result.order_id || '')}`)
+          router.push(`/payment/success?order_id=${encodeURIComponent(orderId || '')}`)
         },
-        onPending: (result: any) => {
+        pendingEvent: (result: any) => {
           persistVendorBlueprint()
-          router.push(`/payment/success?order_id=${encodeURIComponent(result.order_id || '')}`)
+          router.push(`/payment/success?order_id=${encodeURIComponent(orderId || '')}`)
         },
-        onError: (result: any) => {
+        errorEvent: (result: any) => {
           console.error('[AshirahBot] Payment error:', result)
           alert('Pembayaran gagal. Silakan coba lagi.')
+        },
+        closeEvent: () => {
+          console.log('[AshirahBot] Payment popup ditutup.')
         },
       })
     } catch (error) {

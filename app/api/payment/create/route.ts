@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server'
-import { Snap } from 'midtrans-client'
 import { getSession } from '@/lib/server/session-store'
 import { getOfferedPrice, getTotalPrice } from '@/lib/server/negotiation-state'
-
-const snap = new Snap({
-  isProduction: process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === 'true',
-  serverKey: process.env.MIDTRANS_SERVER_KEY!,
-})
+import { createDuitkuTransaction } from '@/lib/server/duitku'
 
 export async function POST(request: Request) {
   try {
@@ -39,32 +34,9 @@ export async function POST(request: Request) {
     const offeredPrice = getOfferedPrice(session)
     const grossAmount = getTotalPrice(session)
     const orderId = `ASH-${sessionId.slice(0, 8)}-${Date.now()}`
-    const unitPrice = session.basePrice + session.logoPrice + session.textPrice
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-    const parameter = {
-      transaction_details: {
-        order_id: orderId,
-        gross_amount: grossAmount,
-      },
-      item_details: [
-        {
-          id: 'kaos-custom',
-          name: `Kaos Custom Ashirah (${session.category || 'Custom'} - ${session.color})`,
-          price: offeredPrice,
-          quantity: session.quantity,
-          brand: 'Ashirah',
-          category: session.category || 'Custom',
-        },
-      ],
-      customer_details: {
-        first_name: 'Customer',
-      },
-      callbacks: {
-        finish: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payment/success`,
-      },
-    }
-
-    console.log('[AshirahBot] Creating Midtrans transaction:', {
+    console.log('[AshirahBot] Creating Duitku transaction:', {
       orderId,
       grossAmount,
       offeredPrice,
@@ -72,15 +44,30 @@ export async function POST(request: Request) {
       discount: session.agreedDiscount,
     })
 
-    const transaction = await snap.createTransaction(parameter)
+    const transaction = await createDuitkuTransaction({
+      merchantOrderId: orderId,
+      paymentAmount: grossAmount,
+      productDetails: `Kaos Custom Ashirah (${session.category || 'Custom'} - ${session.color})`,
+      email: 'customer@ashirah.id',
+      customerVaName: 'Customer Ashirah',
+      itemDetails: [
+        {
+          name: `Kaos Custom Ashirah (${session.category || 'Custom'} - ${session.color})`,
+          price: offeredPrice,
+          quantity: session.quantity,
+        },
+      ],
+      returnUrl: `${appUrl}/payment/success`,
+      callbackUrl: `${appUrl}/api/payment/callback`,
+    })
 
     return NextResponse.json({
-      token: transaction.token,
-      redirectUrl: transaction.redirect_url,
+      reference: transaction.reference,
+      paymentUrl: transaction.paymentUrl,
       orderId,
     })
   } catch (error) {
-    console.error('[AshirahBot] Midtrans payment creation failed:', error)
+    console.error('[AshirahBot] Duitku payment creation failed:', error)
     return NextResponse.json(
       { error: 'Gagal membuat transaksi pembayaran' },
       { status: 500 }

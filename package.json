@@ -17,7 +17,6 @@
     "fabric": "^7.4.0",
     "groq-sdk": "^1.4.0",
     "lucide-react": "^1.16.0",
-    "midtrans-client": "^1.4.3",
     "next": "16.2.6",
     "react": "^19",
     "react-dom": "^19",
