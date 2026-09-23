@@ -1,15 +1,23 @@
-/**
- * OWNERSHIP: Backend
- * Duitku payment gateway client — pengganti Midtrans.
- * Hanya dipakai di server-side (API routes). Lihat ARCHITECTURE.md.
- *
- * Docs: https://docs.duitku.com/api/en/#request-transaction
- * Signature: HMAC_SHA256(merchantCode + merchantOrderId + paymentAmount, apiKey)
- */
 import { createHmac } from 'crypto'
 
 const DUITKU_SANDBOX_URL = 'https://sandbox.duitku.com/webapi/api/merchant/v2/inquiry'
 const DUITKU_PRODUCTION_URL = 'https://passport.duitku.com/webapi/api/merchant/v2/inquiry'
+
+const DUITKU_SANDBOX_METHODS_URL = 'https://sandbox.duitku.com/webapi/api/merchant/paymentmethod/getpaymentmethod'
+const DUITKU_PRODUCTION_METHODS_URL = 'https://passport.duitku.com/webapi/api/merchant/paymentmethod/getpaymentmethod'
+
+export interface DuitkuPaymentMethod {
+  paymentMethod: string
+  paymentName: string
+  paymentImage: string
+  totalFee: string
+}
+
+export interface DuitkuGetPaymentMethodsResponse {
+  paymentFee: DuitkuPaymentMethod[]
+  responseCode: string
+  responseMessage: string
+}
 
 export interface DuitkuItemDetail {
   name: string
@@ -26,9 +34,7 @@ export interface DuitkuCreateTransactionParams {
   itemDetails?: DuitkuItemDetail[]
   returnUrl: string
   callbackUrl: string
-  /** Payment method code. Kosong = tampilkan semua channel aktif. */
   paymentMethod?: string
-  /** Expiry dalam menit. Default: 1440 (24 jam). */
   expiryPeriod?: number
 }
 
@@ -71,10 +77,10 @@ export async function createDuitkuTransaction(
     apiKey
   )
 
-  const body = {
+  const body: Record<string, unknown> = {
     merchantCode,
     paymentAmount: params.paymentAmount,
-    paymentMethod: params.paymentMethod ?? '',
+    paymentMethod: params.paymentMethod ?? 'OV',
     merchantOrderId: params.merchantOrderId,
     productDetails: params.productDetails,
     additionalParam: '',
@@ -82,7 +88,6 @@ export async function createDuitkuTransaction(
     customerVaName: params.customerVaName,
     email: params.email,
     phoneNumber: '',
-    itemDetails: params.itemDetails ?? [],
     customerDetail: {
       firstName: params.customerVaName,
       lastName: '',
@@ -92,6 +97,12 @@ export async function createDuitkuTransaction(
     returnUrl: params.returnUrl,
     signature,
     expiryPeriod: params.expiryPeriod ?? 1440,
+  }
+
+  // itemDetails bersifat opsional — hanya kirim kalau ada,
+  // karena Duitku validasi price*qty harus == paymentAmount
+  if (params.itemDetails && params.itemDetails.length > 0) {
+    body.itemDetails = params.itemDetails
   }
 
   const url = isProduction ? DUITKU_PRODUCTION_URL : DUITKU_SANDBOX_URL
@@ -120,4 +131,67 @@ export async function createDuitkuTransaction(
   }
 
   return data
+}
+
+function generateMethodsSignature(
+  merchantCode: string,
+  amount: number,
+  datetime: string,
+  apiKey: string
+): string {
+  const stringToSign = `${merchantCode}${amount}${datetime}`
+  return createHmac('sha256', apiKey).update(stringToSign).digest('hex')
+}
+
+/**
+ * Fetch daftar payment method yang aktif dari project Duitku.
+ * @param amount - nominal transaksi, dipakai untuk kalkulasi fee per channel
+ */
+export async function getDuitkuPaymentMethods(
+  amount: number
+): Promise<DuitkuPaymentMethod[]> {
+  const merchantCode = process.env.DUITKU_MERCHANT_CODE!
+  const apiKey = process.env.DUITKU_API_KEY!
+  const isProduction = process.env.DUITKU_IS_PRODUCTION === 'true'
+
+  if (!merchantCode || !apiKey) {
+    throw new Error('[Duitku] DUITKU_MERCHANT_CODE atau DUITKU_API_KEY belum dikonfigurasi.')
+  }
+
+  const datetime = new Date()
+    .toISOString()
+    .replace('T', ' ')
+    .substring(0, 19)
+
+  const signature = generateMethodsSignature(merchantCode, amount, datetime, apiKey)
+
+  const body = {
+    merchantcode: merchantCode,
+    amount,
+    datetime,
+    signature,
+  }
+
+  const url = isProduction ? DUITKU_PRODUCTION_METHODS_URL : DUITKU_SANDBOX_METHODS_URL
+
+  console.log('[AshirahBot] Fetching Duitku payment methods:', { amount, isProduction })
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '(no body)')
+    throw new Error(`[Duitku] HTTP ${res.status}: ${errBody}`)
+  }
+
+  const data = (await res.json()) as DuitkuGetPaymentMethodsResponse
+
+  if (data.responseCode !== '00') {
+    throw new Error(`[Duitku] Get payment methods failed: ${data.responseMessage}`)
+  }
+
+  return data.paymentFee
 }

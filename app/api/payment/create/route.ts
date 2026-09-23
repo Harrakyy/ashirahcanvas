@@ -6,10 +6,14 @@ import { createDuitkuTransaction } from '@/lib/server/duitku'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { sessionId } = body
+    const { sessionId, paymentMethod } = body
 
     if (!sessionId || typeof sessionId !== 'string') {
       return NextResponse.json({ error: 'Session ID is required' }, { status: 400 })
+    }
+
+    if (!paymentMethod || typeof paymentMethod !== 'string') {
+      console.warn('[AshirahBot] paymentMethod not provided, falling back to VC')
     }
 
     const session = await getSession(sessionId)
@@ -19,14 +23,14 @@ export async function POST(request: Request) {
 
     if (session.agreedDiscount === null || session.agreedDiscount === undefined) {
       return NextResponse.json(
-        { error: 'Negosiasi belum selesai. Harap selesaikan negosiasi terlebih dahulu.' },
+        { error: 'Negotiation is not complete. Please finish the negotiation first.' },
         { status: 400 }
       )
     }
 
     if (!session.quantity || session.quantity < 1) {
       return NextResponse.json(
-        { error: 'Jumlah pesanan tidak valid' },
+        { error: 'Invalid order quantity.' },
         { status: 400 }
       )
     }
@@ -50,15 +54,9 @@ export async function POST(request: Request) {
       productDetails: `Kaos Custom Ashirah (${session.category || 'Custom'} - ${session.color})`,
       email: 'customer@ashirah.id',
       customerVaName: 'Customer Ashirah',
-      itemDetails: [
-        {
-          name: `Kaos Custom Ashirah (${session.category || 'Custom'} - ${session.color})`,
-          price: offeredPrice,
-          quantity: session.quantity,
-        },
-      ],
       returnUrl: `${appUrl}/payment/success`,
       callbackUrl: `${appUrl}/api/payment/callback`,
+      paymentMethod: paymentMethod ?? 'OV',
     })
 
     return NextResponse.json({
@@ -69,7 +67,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('[AshirahBot] Duitku payment creation failed:', error)
     return NextResponse.json(
-      { error: 'Gagal membuat transaksi pembayaran' },
+      { error: 'Failed to create payment transaction.' },
       { status: 500 }
     )
   }
