@@ -220,7 +220,7 @@ export default function LayerPanel() {
                     {layer.name}
                   </p>
                   {layer.locked && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-700 font-medium">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-[#4C567A] font-medium">
                       <Lock className="w-2.5 h-2.5" /> Terkunci
                     </span>
                   )}
@@ -243,7 +243,7 @@ export default function LayerPanel() {
                     {layer.visible ? (
                       <Eye className="w-4 h-4 text-gray-600" />
                     ) : (
-                      <EyeOff className="w-4 h-4 text-amber-600" />
+                      <EyeOff className="w-4 h-4 text-[#4C567A]" />
                     )}
                   </button>
 
@@ -260,7 +260,7 @@ export default function LayerPanel() {
                     title={layer.locked ? 'Buka Kunci' : 'Kunci'}
                   >
                     {layer.locked ? (
-                      <Lock className="w-4 h-4 text-amber-600" />
+                      <Lock className="w-4 h-4 text-[#1A2B56]" />
                     ) : (
                       <LockOpen className="w-4 h-4 text-gray-400" />
                     )}

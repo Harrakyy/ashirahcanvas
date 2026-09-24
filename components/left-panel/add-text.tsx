@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Type, Plus, Check, CornerDownLeft } from 'lucide-react'
+import { Type, Plus, Check, CornerDownLeft, Bold, Italic, AlignLeft, AlignCenter, AlignRight, ChevronUp, ChevronDown } from 'lucide-react'
 import { addTextToCanvas, updateSelectedText, getCanvas } from '@/lib/ui/canvas-engine'
 import { useDesignStore } from '@/store/design-store'
 import { useCanvasStore } from '@/features/canvas/store/useCanvasStore'
@@ -29,6 +29,10 @@ export default function AddText() {
   const [text, setText] = useState('Ashirah Apparel')
   const [selectedFont, setSelectedFont] = useState('Inter')
   const [textColor, setTextColor] = useState('#000000')
+  const [isBold, setIsBold] = useState(false)
+  const [isItalic, setIsItalic] = useState(false)
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('center')
+  const [fontSize, setFontSize] = useState(28)
   const [hasActiveTextSelection, setHasActiveTextSelection] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -48,6 +52,10 @@ export default function AddText() {
       setText(curText)
       setSelectedFont(curFont)
       setTextColor(typeof curColor === 'string' ? curColor : '#000000')
+      setIsBold((active as any).fontWeight === 'bold')
+      setIsItalic((active as any).fontStyle === 'italic')
+      setTextAlign(((active as any).textAlign as 'left' | 'center' | 'right') ?? 'center')
+      setFontSize((active as any).fontSize ?? 28)
     } else {
       setHasActiveTextSelection(false)
     }
@@ -110,6 +118,37 @@ export default function AddText() {
     }
   }
 
+  const handleBoldToggle = () => {
+    const next = !isBold
+    setIsBold(next)
+    if (hasActiveTextSelection) {
+      updateSelectedText({ fontWeight: next ? 'bold' : 'normal' })
+    }
+  }
+
+  const handleItalicToggle = () => {
+    const next = !isItalic
+    setIsItalic(next)
+    if (hasActiveTextSelection) {
+      updateSelectedText({ fontStyle: next ? 'italic' : 'normal' })
+    }
+  }
+
+  const handleAlignChange = (align: 'left' | 'center' | 'right') => {
+    setTextAlign(align)
+    if (hasActiveTextSelection) {
+      updateSelectedText({ textAlign: align })
+    }
+  }
+
+  const handleFontSizeChange = (val: number) => {
+    const clamped = Math.max(8, Math.min(120, val))
+    setFontSize(clamped)
+    if (hasActiveTextSelection) {
+      updateSelectedText({ fontSize: clamped })
+    }
+  }
+
   const handleAddText = async () => {
     await addTextToCanvas(
       text || 'Teks Baru',
@@ -119,6 +158,8 @@ export default function AddText() {
       selectedCategory,
       garmentColor
     )
+    // Sync bold/italic/align/fontSize after adding
+    syncActiveTextSelection()
   }
 
   return (
@@ -160,6 +201,85 @@ export default function AddText() {
         <p className="text-[10px] text-gray-400">
           Tip: Teks otomatis membungkus (wrap) di kanvas, atau gunakan Enter / tombol Baris Baru untuk memisah baris.
         </p>
+      </div>
+
+      {/* Style Controls: Bold, Italic, Align, Font Size */}
+      <div className="space-y-3">
+        <label className="text-xs font-semibold text-gray-700">Gaya Teks</label>
+        <div className="flex gap-1.5 flex-wrap">
+          {/* Bold */}
+          <button
+            type="button"
+            onClick={handleBoldToggle}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition ${
+              isBold ? 'border-blue-950 bg-blue-950 text-white' : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+            }`}
+          >
+            <Bold className="w-3.5 h-3.5" />
+            Bold
+          </button>
+          {/* Italic */}
+          <button
+            type="button"
+            onClick={handleItalicToggle}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition ${
+              isItalic ? 'border-blue-950 bg-blue-950 text-white' : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+            }`}
+          >
+            <Italic className="w-3.5 h-3.5" />
+            Italic
+          </button>
+        </div>
+
+        {/* Alignment */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          {(['left', 'center', 'right'] as const).map((align) => {
+            const Icon = align === 'left' ? AlignLeft : align === 'center' ? AlignCenter : AlignRight
+            const label = align === 'left' ? 'Kiri' : align === 'center' ? 'Tengah' : 'Kanan'
+            return (
+              <button
+                key={align}
+                type="button"
+                onClick={() => handleAlignChange(align)}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-xs transition ${
+                  textAlign === align ? 'bg-white shadow-sm text-blue-950 font-semibold' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Font Size */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-gray-700 whitespace-nowrap">Ukuran Font</label>
+          <div className="flex items-center gap-1 ml-auto">
+            <button
+              type="button"
+              onClick={() => handleFontSizeChange(fontSize - 2)}
+              className="p-1 rounded-md border border-gray-200 hover:bg-gray-100 text-gray-700 transition"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            <input
+              type="number"
+              min={8}
+              max={120}
+              value={fontSize}
+              onChange={(e) => handleFontSizeChange(Number(e.target.value))}
+              className="w-12 text-center border border-gray-200 rounded-md py-0.5 text-xs font-semibold text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-950"
+            />
+            <button
+              type="button"
+              onClick={() => handleFontSizeChange(fontSize + 2)}
+              className="p-1 rounded-md border border-gray-200 hover:bg-gray-100 text-gray-700 transition"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Font Selector (5 Fonts Terkunci) */}
@@ -222,7 +342,7 @@ export default function AddText() {
         <button
           type="button"
           onClick={handleAddText}
-          className="w-full py-2.5 px-4 bg-blue-950 hover:bg-blue-900 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 shadow-md transition mt-auto"
+          className="w-full py-2.5 px-4 bg-[#1A2B56] hover:bg-[#243B6B] text-white rounded-full text-sm font-bold flex items-center justify-center gap-2 shadow-md transition mt-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Tambahkan ke Kanvas

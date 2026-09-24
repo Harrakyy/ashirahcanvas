@@ -1,5 +1,5 @@
 import { ACTIVE_ZONES } from '@/lib/config/zones'
-import { getMockupUrl } from '@/lib/config/mockup-paths'
+import { getMockupUrl, getColorName } from '@/lib/config/mockup-paths'
 import { getCanvas, serializeUserObjects } from '@/lib/ui/canvas-engine'
 import { getActiveColor, getActiveZone, getViewState } from '@/lib/ui/design-state'
 import { useDesignStore } from '@/store/design-store'
@@ -106,14 +106,33 @@ export function snapshotAllZones(): BlueprintSnapshot {
     }
   })
 
+  let previewBase64: string | undefined
+  try {
+    previewBase64 = canvas ? canvas.toDataURL() : undefined
+  } catch {
+    // Canvas tainted or not ready
+  }
+
+  const uploadedImagesMap: Record<string, string[]> = {}
+  for (const z of zones) {
+    uploadedImagesMap[z.zone] = z.assets.filter(a => a.src).map(a => a.src)
+  }
+
   return {
     zones,
     capturedAt: Date.now(),
     category,
     colorHex,
+    colorName: getColorName(colorHex),
     canvasWidth: canvas?.getWidth() ?? DEFAULT_CANVAS_WIDTH,
     canvasHeight: canvas?.getHeight() ?? DEFAULT_CANVAS_HEIGHT,
     assetsOmitted: false,
+    previewBase64,
+    preview_base64: previewBase64,
+    design_assets: {
+      preview_base64: previewBase64,
+      uploaded_images: uploadedImagesMap,
+    },
   }
 }
 

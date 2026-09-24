@@ -19,6 +19,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   if (!pending) {
     pending = new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image()
+      el.crossOrigin = 'anonymous'
       el.onload = () => resolve(el)
       el.onerror = () => reject(new Error(`image load failed: ${url}`))
       el.src = url

@@ -14,7 +14,6 @@
 
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import Script from 'next/script'
 import Header from '@/components/header'
 import LeftPanel from '@/components/left-panel'
 import RightPanel from '@/components/right-panel'
@@ -51,6 +50,10 @@ export default function EditorPage() {
 
   const selectedProductId = useDesignStore((s) => s.selectedProductId)
   const selectedCategory = useDesignStore((s) => s.selectedCategory)
+  const colorVariants = useDesignStore((s) => s.colorVariants)
+  const setColorVariants = useDesignStore((s) => s.setColorVariants)
+  const setSelectedProduct = useDesignStore((s) => s.setSelectedProduct)
+  const setProductDetails = useDesignStore((s) => s.setProductDetails)
 
   const selectedColor = useCanvasStore((s) => s.selectedColor)
   const selectedSize = useCanvasStore((s) => s.selectedSize)
@@ -59,6 +62,71 @@ export default function EditorPage() {
   const zoomOut = useCanvasStore((s) => s.zoomOut)
   const setSelectedColor = useCanvasStore((s) => s.setSelectedColor)
   const setSelectedSize = useCanvasStore((s) => s.setSelectedSize)
+
+  // Initial Load: Fetch active tenant products from database if on default '1' or not initialized
+  useEffect(() => {
+    fetch('/api/products')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.products && Array.isArray(data.products) && data.products.length > 0) {
+          const currentInDb = data.products.find((p: any) => p.id === selectedProductId)
+          const activeProduct = currentInDb || data.products[0]
+          if (activeProduct) {
+            setSelectedProduct(activeProduct.id, activeProduct.category, {
+              name: activeProduct.name,
+              description: activeProduct.description,
+              basePrice: Number(activeProduct.basePrice) || undefined,
+              material: activeProduct.material,
+            })
+            if (
+              activeProduct.colorVariants &&
+              Array.isArray(activeProduct.colorVariants) &&
+              activeProduct.colorVariants.length > 0
+            ) {
+              setColorVariants(activeProduct.colorVariants)
+              const hasColor = activeProduct.colorVariants.some(
+                (v: any) => v.hex?.trim().toUpperCase() === selectedColor?.trim().toUpperCase()
+              )
+              if (!hasColor && activeProduct.colorVariants[0]?.hex) {
+                setSelectedColor(activeProduct.colorVariants[0].hex)
+              }
+            }
+          }
+        }
+      })
+      .catch((err) => console.error('Failed to init product in editor:', err))
+  }, [])
+
+  // Sync details whenever selectedProductId changes to a specific UUID
+  useEffect(() => {
+    if (!selectedProductId || selectedProductId === '1') return
+    fetch(`/api/products/${selectedProductId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.product) {
+          setProductDetails({
+            name: data.product.name,
+            description: data.product.description,
+            basePrice: Number(data.product.basePrice) || undefined,
+            material: data.product.material,
+          })
+          if (
+            data.product.colorVariants &&
+            Array.isArray(data.product.colorVariants) &&
+            data.product.colorVariants.length > 0
+          ) {
+            setColorVariants(data.product.colorVariants)
+            const hasSelected = data.product.colorVariants.some(
+              (v: any) => v.hex?.trim().toUpperCase() === selectedColor?.trim().toUpperCase()
+            )
+            if (!hasSelected && data.product.colorVariants[0]?.hex) {
+              setSelectedColor(data.product.colorVariants[0].hex)
+            }
+          }
+        }
+      })
+      .catch(() => {})
+  }, [selectedProductId, setColorVariants, setSelectedColor, setProductDetails])
 
   const sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL']
   const activeColors = ['#FFFFFF', '#000000']
@@ -79,6 +147,7 @@ export default function EditorPage() {
   const totalQty = Object.values(quantities).reduce((a, b) => a + b, 0)
   const subtotal = unitPrice
   const total = subtotal * totalQty
+  const moq = quote?.moq ?? 1
 
   const {
     rightPanelMode,
@@ -100,6 +169,7 @@ export default function EditorPage() {
     color: selectedColor,
     totalQty,
     unitPrice,
+    moq,
   })
 
   const [isQuoteLoading, setIsQuoteLoading] = useState(true)
@@ -155,6 +225,7 @@ export default function EditorPage() {
           selectedColor={selectedColor}
           onColorChange={setSelectedColor}
           colors={colors}
+          colorVariants={colorVariants}
           disabledColors={disabledColors}
           selectedSize={selectedSize}
           onSizeChange={setSelectedSize}
@@ -204,6 +275,7 @@ export default function EditorPage() {
           onSimulateCheckout={handleSimulateCheckout}
           isSimulatingCheckout={isProcessingPayment}
           isQuoteLoading={isQuoteLoading}
+          moq={moq}
         />
       </div>
 
@@ -230,6 +302,7 @@ export default function EditorPage() {
         selectedColor={selectedColor}
         onColorChange={setSelectedColor}
         colors={colors}
+        colorVariants={colorVariants}
         disabledColors={disabledColors}
         selectedSize={selectedSize}
         onSizeChange={setSelectedSize}
@@ -266,16 +339,7 @@ export default function EditorPage() {
         isProcessingPayment={isProcessingPayment}
         onSimulateCheckout={handleSimulateCheckout}
         isSimulatingCheckout={isProcessingPayment}
-      />
-
-      <Script
-        src={
-          process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === 'true'
-            ? 'https://app.midtrans.com/snap/snap.js'
-            : 'https://app.sandbox.midtrans.com/snap/snap.js'
-        }
-        data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
-        strategy="lazyOnload"
+        moq={moq}
       />
     </div>
   )

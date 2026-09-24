@@ -31,9 +31,17 @@ export interface BlueprintSnapshot {
   capturedAt: number
   category: string
   colorHex: string
+  colorName?: string
   canvasWidth: number
   canvasHeight: number
   assetsOmitted: boolean
+  previewBase64?: string
+  preview_base64?: string
+  design_assets?: {
+    preview_base64?: string
+    fabric_raw_json?: Record<string, object | null>
+    uploaded_images?: Record<string, string[]>
+  }
 }
 
 export interface CanvasBlueprint {

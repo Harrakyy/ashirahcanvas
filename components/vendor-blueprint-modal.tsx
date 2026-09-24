@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { Download, Eye, ImagePlus, Shirt, FileText, CheckCircle2, Layers, Package } from 'lucide-react'
 import {
   Dialog,
@@ -19,13 +19,13 @@ export const CANVAS_STORAGE_KEY = 'canvas_blueprint'
 
 const PREVIEW_WIDTH = 180
 
-function isBlueprintSnapshot(value: unknown): value is BlueprintSnapshot {
+export function isBlueprintSnapshot(value: unknown): value is BlueprintSnapshot {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<BlueprintSnapshot>
   return Array.isArray(candidate.zones) && typeof candidate.capturedAt === 'number'
 }
 
-function adaptCanvasBlueprintToSnapshot(cb: CanvasBlueprint): BlueprintSnapshot {
+export function adaptCanvasBlueprintToSnapshot(cb: CanvasBlueprint): BlueprintSnapshot {
   const category = 'tshirt'
   const colorHex = cb.variant?.color || '#FFFFFF'
   const zones: ZoneBlueprint[] = ACTIVE_ZONES.map((zone) => {
@@ -127,7 +127,7 @@ function triggerDownload(url: string, fileName: string) {
   document.body.removeChild(a)
 }
 
-function downloadBlueprintJson(snapshot: BlueprintSnapshot, fileName?: string) {
+export function downloadBlueprintJson(snapshot: BlueprintSnapshot, fileName?: string) {
   const jsonStr = JSON.stringify(snapshot, null, 2)
   const blob = new Blob([jsonStr], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -145,13 +145,14 @@ function downloadBlueprintJson(snapshot: BlueprintSnapshot, fileName?: string) {
 /**
  * Render an offscreen high-res composite image of the garment mockup + customer design
  */
-async function generateZoneCompositeDataUrl(
+export async function generateZoneCompositeDataUrl(
   mockupUrl: string | null,
   mockupBox: PreviewBox | null,
   printArea: { x: number; y: number; width: number; height: number } | null,
   assets: BlueprintAsset[],
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  zoneName?: string
 ): Promise<string> {
   const canvas = document.createElement('canvas')
   canvas.width = canvasWidth
@@ -163,13 +164,22 @@ async function generateZoneCompositeDataUrl(
   ctx.fillStyle = '#FFFFFF'
   ctx.fillRect(0, 0, canvasWidth, canvasHeight)
 
+  let resolvedBox = mockupBox
+  if (!resolvedBox && mockupUrl) {
+    try {
+      resolvedBox = await getMockupBox(mockupUrl, zoneName || 'front', canvasWidth, canvasHeight)
+    } catch {
+      resolvedBox = null
+    }
+  }
+
   // 1. Draw Mockup Garment
-  if (mockupUrl && mockupBox) {
+  if (mockupUrl && resolvedBox) {
     await new Promise<void>((resolve) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => {
-        ctx.drawImage(img, mockupBox.left, mockupBox.top, mockupBox.width, mockupBox.height)
+        ctx.drawImage(img, resolvedBox!.left, resolvedBox!.top, resolvedBox!.width, resolvedBox!.height)
         resolve()
       }
       img.onerror = () => resolve()
@@ -241,17 +251,51 @@ function useAssetObjectUrl(src: string): string | null {
   return objectUrl
 }
 
-interface ZonePreviewProps {
+export interface ZonePreviewProps {
   zone: ZoneBlueprint
   snapshot: BlueprintSnapshot
+  previewWidth?: number
+  autoFit?: boolean
+  className?: string
 }
 
-function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
+export function ZonePreview({
+  zone,
+  snapshot,
+  previewWidth,
+  autoFit = false,
+  className = '',
+}: ZonePreviewProps) {
   const [mockupBox, setMockupBox] = useState<PreviewBox | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [measuredWidth, setMeasuredWidth] = useState<number>(previewWidth || (autoFit ? 0 : PREVIEW_WIDTH))
   const mockupUrl = zone.mockupUrl
 
   const { category, colorHex, canvasWidth, canvasHeight } = snapshot
+
+  useEffect(() => {
+    if (!autoFit && previewWidth) {
+      setMeasuredWidth(previewWidth)
+      return
+    }
+    if (!containerRef.current) return
+    const el = containerRef.current
+    const updateWidth = () => {
+      const w = el.clientWidth
+      if (w > 50) setMeasuredWidth(w)
+    }
+    updateWidth()
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 50) {
+          setMeasuredWidth(entry.contentRect.width)
+        }
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [autoFit, previewWidth])
 
   useEffect(() => {
     if (!mockupUrl) {
@@ -271,7 +315,8 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
     }
   }, [mockupUrl, zone.zone, canvasWidth, canvasHeight])
 
-  const scale = PREVIEW_WIDTH / canvasWidth
+  const activeWidth = measuredWidth > 0 ? measuredWidth : (previewWidth || PREVIEW_WIDTH)
+  const scale = activeWidth / canvasWidth
   const printArea = getPrintArea(category, colorHex, zone.zone)
 
   const handleDownloadMockup = async () => {
@@ -283,7 +328,8 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
         printArea,
         zone.assets,
         canvasWidth,
-        canvasHeight
+        canvasHeight,
+        zone.zone
       )
       if (dataUrl) {
         triggerDownload(dataUrl, `mockup-${category}-${zone.zone}.png`)
@@ -303,7 +349,8 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
         printArea,
         zone.assets,
         canvasWidth,
-        canvasHeight
+        canvasHeight,
+        zone.zone
       )
       if (dataUrl) {
         triggerDownload(dataUrl, `mockup-${category}-${zone.zone}.png`)
@@ -324,7 +371,8 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
         printArea,
         zone.assets,
         canvasWidth,
-        canvasHeight
+        canvasHeight,
+        zone.zone
       )
       if (dataUrl) {
         const win = window.open()
@@ -338,17 +386,23 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
   }
 
   return (
-    <div className="rounded-3xl border border-black/[0.07] bg-white p-3 space-y-2.5 shadow-sm hover:shadow-md hover:border-black/15 transition-all duration-200">
+    <div
+      className={`rounded-2xl border border-black/[0.07] bg-white p-3 space-y-2.5 shadow-xs hover:shadow-sm transition-all duration-200 flex flex-col justify-between ${className}`}
+    >
       {/* Visual Canvas Display */}
       <div
-        className="relative overflow-hidden rounded-2xl bg-neutral-50 shadow-inner border border-black/[0.04] mx-auto"
-        style={{ width: PREVIEW_WIDTH, height: canvasHeight * scale }}
+        ref={containerRef}
+        className="relative overflow-hidden rounded-xl bg-neutral-50 shadow-inner border border-black/[0.04] mx-auto w-full transition-all"
+        style={{
+          width: autoFit ? '100%' : (previewWidth || PREVIEW_WIDTH),
+          height: Math.round(canvasHeight * scale),
+        }}
       >
         {mockupUrl && mockupBox && (
           <img
             src={mockupUrl}
             alt={`Mockup ${getZoneLabel(zone.zone)}`}
-            className="absolute select-none"
+            className="absolute select-none pointer-events-none"
             draggable={false}
             style={{
               left: mockupBox.left * scale,
@@ -359,7 +413,7 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
           />
         )}
         <div
-          className="absolute overflow-hidden"
+          className="absolute overflow-hidden pointer-events-none"
           style={{
             left: (printArea?.x ?? 0) * scale,
             top: (printArea?.y ?? 0) * scale,
@@ -419,18 +473,25 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
         <p className="text-xs font-semibold tracking-tight text-neutral-900">
           {getZoneLabel(zone.zone)}
         </p>
-        <span className="text-[10px] font-medium text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full border border-black/[0.04]">
-          {zone.assets.length} aset
+        <span
+          className={`text-[10px] font-medium px-2 py-0.5 rounded-full border flex items-center gap-1.5 ${
+            zone.assets.length > 0
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-neutral-100 text-neutral-500 border-black/[0.04]'
+          }`}
+        >
+          {zone.assets.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+          {zone.assets.length > 0 ? `${zone.assets.length} aset` : 'Polos'}
         </span>
       </div>
 
-      {/* Apple Style Action Buttons */}
+      {/* Action Buttons */}
       <div className="space-y-1.5 pt-1.5 border-t border-black/[0.05]">
         <div className="flex items-center gap-1.5">
           <button
             onClick={handleViewMockup}
             disabled={isExporting}
-            className="inline-flex items-center justify-center p-2 rounded-xl border border-neutral-200/90 bg-neutral-50 hover:bg-neutral-100 text-neutral-700 shadow-2xs active:scale-95 transition-all disabled:opacity-50"
+            className="inline-flex items-center justify-center p-2 rounded-full border border-[#C4C8D8] bg-white hover:bg-neutral-100 text-neutral-700 shadow-2xs active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
             title="Lihat Gambar Pratinjau Full Size"
           >
             <Eye className="w-3.5 h-3.5 text-neutral-600" />
@@ -438,21 +499,21 @@ function ZonePreview({ zone, snapshot }: ZonePreviewProps) {
           <button
             onClick={handleDownloadMockup}
             disabled={isExporting}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-medium active:scale-95 transition-all shadow-xs disabled:opacity-50"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-full bg-[#1A2B56] hover:bg-[#243B6B] text-white text-[11px] font-bold active:scale-95 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             title="Unduh Gambar Mockup Hasil Desain"
           >
             <Download className="w-3 h-3" />
-            {isExporting ? 'Memproses...' : 'Unduh Gambar'}
+            {isExporting ? 'Memproses...' : 'Unduh Mockup'}
           </button>
         </div>
 
         <button
           onClick={handleDownloadBoth}
           disabled={isExporting}
-          className="w-full inline-flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-xl border border-neutral-200/90 bg-white hover:bg-neutral-50 text-neutral-800 text-[10px] font-medium active:scale-95 transition-all shadow-2xs disabled:opacity-50"
+          className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-full border border-[#C4C8D8] bg-white hover:bg-[#EDEDF2] text-[#1A2B56] text-[10px] font-bold active:scale-95 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
           title="Unduh Gambar Sekaligus File Blueprint"
         >
-          <Package className="w-3 h-3 text-neutral-500" />
+          <Package className="w-3 h-3 text-[#4C567A]" />
           Unduh Gambar + Blueprint
         </button>
       </div>
@@ -529,18 +590,18 @@ function RawAssetRow({ asset, index }: RawAssetRowProps) {
           <a
             href={downloadUrl}
             download={fileName}
-            className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-neutral-900 px-3.5 text-xs font-medium text-white shadow-xs hover:bg-neutral-800 active:scale-95 transition-all"
+            className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#1A2B56] px-3.5 text-xs font-bold text-white shadow-xs hover:bg-[#243B6B] active:scale-95 transition-all cursor-pointer"
           >
             <Download className="h-3.5 w-3.5" />
             Unduh
           </a>
         </div>
       ) : asset.text ? (
-        <span className="shrink-0 text-xs font-medium text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-100">
+        <span className="shrink-0 text-xs font-medium text-[#1A2B56] bg-[#F0F2F6] px-2.5 py-1 rounded-full border border-[#C4C8D8]">
           Objek Teks
         </span>
       ) : (
-        <span className="shrink-0 text-xs font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-xl">
+        <span className="shrink-0 text-xs font-medium text-[#4C567A] bg-[#F0F2F6] px-2.5 py-1 rounded-full border border-[#C4C8D8]">
           Tidak tersimpan
         </span>
       )}
@@ -548,25 +609,39 @@ function RawAssetRow({ asset, index }: RawAssetRowProps) {
   )
 }
 
-interface VendorBlueprintModalProps {
+export interface VendorBlueprintModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  snapshot?: BlueprintSnapshot | null
 }
 
 export default function VendorBlueprintModal({
   open,
   onOpenChange,
+  snapshot: propSnapshot,
 }: VendorBlueprintModalProps) {
-  const [snapshot, setSnapshot] = useState<BlueprintSnapshot | null>(null)
+  const [snapshot, setSnapshot] = useState<BlueprintSnapshot | null>(propSnapshot || null)
+  const [filterMode, setFilterMode] = useState<'all' | 'designed'>('all')
 
   useEffect(() => {
     if (!open) return
-    setSnapshot(readSnapshot())
-  }, [open])
+    if (propSnapshot) {
+      setSnapshot(propSnapshot)
+    } else {
+      setSnapshot(readSnapshot())
+    }
+  }, [open, propSnapshot])
 
   const zones = useMemo(() => snapshot?.zones ?? [], [snapshot])
-  const designedZones = useMemo(() => zones.filter((zone) => zone.hasDesign), [zones])
-  const emptyZones = useMemo(() => zones.filter((zone) => !zone.hasDesign), [zones])
+  const designedZones = useMemo(
+    () => zones.filter((zone) => zone.hasDesign || (zone.assets && zone.assets.length > 0)),
+    [zones]
+  )
+  const emptyZones = useMemo(
+    () => zones.filter((zone) => !zone.hasDesign && (!zone.assets || zone.assets.length === 0)),
+    [zones]
+  )
+  const displayedZones = filterMode === 'all' ? zones : designedZones
   const rawAssets = useMemo(
     () => designedZones.flatMap((zone) => zone.assets),
     [designedZones]
@@ -578,15 +653,17 @@ export default function VendorBlueprintModal({
     // 1. Download blueprint JSON
     downloadBlueprintJson(snapshot)
 
-    // 2. Download all zone mockups
-    for (const zone of designedZones) {
+    // 2. Download all zone mockups with full garment render
+    const zonesToExport = designedZones.length > 0 ? designedZones : zones
+    for (const zone of zonesToExport) {
       const dataUrl = await generateZoneCompositeDataUrl(
         zone.mockupUrl,
-        null, // will calculate if null or use available
+        null,
         getPrintArea(snapshot.category, snapshot.colorHex, zone.zone),
         zone.assets,
         snapshot.canvasWidth,
-        snapshot.canvasHeight
+        snapshot.canvasHeight,
+        zone.zone
       )
       if (dataUrl) {
         triggerDownload(dataUrl, `mockup-${snapshot.category}-${zone.zone}.png`)
@@ -625,15 +702,15 @@ export default function VendorBlueprintModal({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => downloadBlueprintJson(snapshot)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/90 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-medium active:scale-95 transition-all shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#C4C8D8] bg-white hover:bg-[#EDEDF2] text-[#1A2B56] text-xs font-bold active:scale-95 transition-all shadow-2xs cursor-pointer"
                   title="Unduh Spesifikasi Teknis Blueprint Saja (JSON)"
                 >
-                  <FileText className="w-3.5 h-3.5 text-neutral-500" />
+                  <FileText className="w-3.5 h-3.5 text-[#4C567A]" />
                   Unduh Blueprint (JSON)
                 </button>
                 <button
                   onClick={handleDownloadAllPackage}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium active:scale-95 transition-all shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#1A2B56] hover:bg-[#243B6B] text-white text-xs font-bold active:scale-95 transition-all shadow-xs cursor-pointer"
                   title="Unduh Paket Lengkap (Semua Gambar + Blueprint)"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -685,33 +762,49 @@ export default function VendorBlueprintModal({
 
             {/* Zone Previews Section with Downloads */}
             <section className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Shirt className="h-4 w-4 text-neutral-800" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                    Pratinjau Kaos per Zona ({designedZones.length} Zona Berdesain)
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700">
+                    Pratinjau Kaos per Zona
                   </h3>
                 </div>
-                <span className="text-[11px] text-neutral-500 font-normal">
-                  Pilih unduh gambar mockup saja atau unduh gambar + blueprint
-                </span>
+
+                <div className="flex items-center gap-1.5 bg-neutral-100 p-0.5 rounded-full border border-black/5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setFilterMode('all')}
+                    className={`px-3 py-1 rounded-full font-bold transition cursor-pointer ${
+                      filterMode === 'all'
+                        ? 'bg-[#1A2B56] text-white shadow-xs'
+                        : 'text-neutral-600 hover:text-neutral-900'
+                    }`}
+                  >
+                    Semua Sisi ({zones.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterMode('designed')}
+                    className={`px-3 py-1 rounded-full font-bold transition cursor-pointer ${
+                      filterMode === 'designed'
+                        ? 'bg-[#1A2B56] text-white shadow-xs'
+                        : 'text-neutral-600 hover:text-neutral-900'
+                    }`}
+                  >
+                    Ada Desain ({designedZones.length})
+                  </button>
+                </div>
               </div>
 
-              {designedZones.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-                  {designedZones.map((zone) => (
+              {displayedZones.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {displayedZones.map((zone) => (
                     <ZonePreview key={zone.zone} zone={zone} snapshot={snapshot} />
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-neutral-400 bg-neutral-50 p-3 rounded-xl border border-black/[0.04]">
+                <p className="text-xs text-neutral-400 bg-neutral-50 p-4 rounded-2xl border border-black/[0.04] text-center">
                   Tidak ada zona dengan desain gambar aktif.
-                </p>
-              )}
-
-              {emptyZones.length > 0 && (
-                <p className="text-[11px] text-neutral-400">
-                  Zona tanpa desain: {emptyZones.map((z) => getZoneLabel(z.zone)).join(', ')}
                 </p>
               )}
             </section>
@@ -728,7 +821,7 @@ export default function VendorBlueprintModal({
               </div>
 
               {snapshot.assetsOmitted && (
-                <p className="rounded-xl bg-amber-50/80 border border-amber-200/80 p-3 text-xs text-amber-800 leading-relaxed">
+                <p className="rounded-xl bg-[#F0F2F6] border border-[#C4C8D8] p-3 text-xs text-[#1A2B56] leading-relaxed">
                   File asli tidak ikut tersimpan karena melebihi kapasitas memori browser. Data posisi
                   dan dimensi tetap tersedia untuk tim konveksi.
                 </p>

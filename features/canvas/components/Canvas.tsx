@@ -1,6 +1,6 @@
 'use client'
 
-import { ZoomIn, ZoomOut, Monitor, ChevronDown, Trash2, AlertTriangle, RotateCcw, Play } from 'lucide-react'
+import { ZoomIn, ZoomOut, Monitor, ChevronDown, AlertTriangle, RotateCcw, Play, Undo2, Redo2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import {
   createCanvas,
@@ -16,12 +16,20 @@ import {
   showDebugOverlay,
   hideDebugOverlay,
   getDebugOverlayCoords,
+  undoCanvas,
+  redoCanvas,
+  canUndoCanvas,
+  canRedoCanvas,
+  duplicateSelectedObject,
+  getCanvas,
 } from '@/lib/ui/canvas-engine'
+import ObjectContextBar from '@/components/canvas-toolbar/ObjectContextBar'
 import { useDesignStore } from '@/store/design-store'
 import { setActiveColor, getViewState, setViewState } from '@/lib/ui/design-state'
 import { ZONE_OPTIONS, ACTIVE_ZONES, getZoneLabel } from '@/lib/config/zones'
 import { getPrintArea } from '@/lib/config/print-areas'
 import { useBoundingBox } from '../hooks/useBoundingBox'
+import { useAlignmentGuides } from '../hooks/useAlignmentGuides'
 import { useCanvasStore, scheduleDebouncedSave } from '../store/useCanvasStore'
 import type { CanvasZone } from '@/types/design'
 
@@ -41,6 +49,7 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<ReturnType<typeof createCanvas> | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false })
 
   // Data Safety state
   const [showDraftPrompt, setShowDraftPrompt] = useState(false)
@@ -90,10 +99,21 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
   }, [])
 
   useBoundingBox(fabricRef)
+  useAlignmentGuides(fabricRef)
 
-  // Swap garment background on color/category change
+  // Swap garment background ONLY on color/category change (NOT on view change)
+  const prevColorRef = useRef(selectedColor)
+  const prevCategoryRef = useRef(selectedCategory)
+
   useEffect(() => {
     if (!fabricRef.current) return
+    const isColorChange = prevColorRef.current !== selectedColor
+    const isCatChange = prevCategoryRef.current !== selectedCategory
+    if (!isColorChange && !isCatChange) return
+
+    prevColorRef.current = selectedColor
+    prevCategoryRef.current = selectedCategory
+
     setActiveColor(selectedColor)
     setBackground(selectedCategory, selectedColor, selectedView)
     reapplyAllClips(selectedCategory, selectedColor, selectedView)
@@ -126,6 +146,9 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
     if (!canvas) return
 
     const handleObjectChange = () => {
+      // Sync history state for button enabled/disabled
+      setHistoryState({ canUndo: canUndoCanvas(), canRedo: canRedoCanvas() })
+
       scheduleDebouncedSave(() => {
         try {
           const currentZone = latestViewRef.current as CanvasZone
@@ -171,30 +194,73 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
   }, [])
 
   const [hasSelection, setHasSelection] = useState(false)
+  const [selectionMeta, setSelectionMeta] = useState({ isText: false, isBold: false, isItalic: false })
+
+  const syncSelectionMeta = () => {
+    const canvas = getCanvas()
+    if (!canvas) {
+      setHasSelection(false)
+      setSelectionMeta({ isText: false, isBold: false, isItalic: false })
+      return
+    }
+    const active = canvas.getActiveObject()
+    if (!active) {
+      setHasSelection(false)
+      setSelectionMeta({ isText: false, isBold: false, isItalic: false })
+      return
+    }
+    setHasSelection(true)
+    const isText = (active as any).type === 'textbox' || active.type === 'i-text' || active.type === 'text'
+    setSelectionMeta({
+      isText,
+      isBold: isText && (active as any).fontWeight === 'bold',
+      isItalic: isText && (active as any).fontStyle === 'italic',
+    })
+  }
 
   useEffect(() => {
     const canvas = fabricRef.current
     if (!canvas) return
 
-    const onSelect = () => setHasSelection(true)
-    const onDeselect = () => setHasSelection(false)
-
-    canvas.on('selection:created', onSelect)
-    canvas.on('selection:updated', onSelect)
-    canvas.on('selection:cleared', onDeselect)
+    canvas.on('selection:created', syncSelectionMeta)
+    canvas.on('selection:updated', syncSelectionMeta)
+    canvas.on('selection:cleared', syncSelectionMeta)
 
     return () => {
-      canvas.off('selection:created', onSelect)
-      canvas.off('selection:updated', onSelect)
-      canvas.off('selection:cleared', onDeselect)
+      canvas.off('selection:created', syncSelectionMeta)
+      canvas.off('selection:updated', syncSelectionMeta)
+      canvas.off('selection:cleared', syncSelectionMeta)
     }
   }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const isText = (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA'
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return
+        if (isText) return
         deleteSelectedObject()
+        syncSelectionMeta()
+      }
+      // Ctrl+D: Duplicate
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault()
+        duplicateSelectedObject().then(() => syncSelectionMeta())
+      }
+      // Undo: Ctrl+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undoCanvas().then(() => {
+          setHistoryState({ canUndo: canUndoCanvas(), canRedo: canRedoCanvas() })
+          syncSelectionMeta()
+        })
+      }
+      // Redo: Ctrl+Y or Ctrl+Shift+Z
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        redoCanvas().then(() => {
+          setHistoryState({ canUndo: canUndoCanvas(), canRedo: canRedoCanvas() })
+          syncSelectionMeta()
+        })
       }
     }
     document.addEventListener('keydown', handleKeyDown)
@@ -267,13 +333,13 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
             <div className="flex gap-2.5 pt-2">
               <button
                 onClick={handleStartFresh}
-                className="flex-1 py-2 px-3 border border-neutral-200 text-neutral-700 hover:bg-neutral-50 rounded-xl text-xs font-medium transition"
+                className="flex-1 py-2 px-3 border border-[#C4C8D8] text-[#1A2B56] hover:bg-[#EDEDF2] rounded-full text-xs font-bold transition cursor-pointer"
               >
                 Mulai Baru
               </button>
               <button
                 onClick={handleRestoreDraft}
-                className="flex-1 py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 shadow-xs transition"
+                className="flex-1 py-2 px-3 bg-[#1A2B56] hover:bg-[#243B6B] text-white rounded-full text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 Lanjutkan
@@ -285,10 +351,10 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
 
       {/* Quota Exceeded Warning Toast */}
       {quotaWarning && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-neutral-900 text-white px-4 py-2.5 rounded-full shadow-xl flex items-center gap-2.5 text-xs font-medium max-w-md">
-          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-[#1A2B56] text-white px-4 py-2.5 rounded-full shadow-xl flex items-center gap-2.5 text-xs font-medium max-w-md">
+          <AlertTriangle className="w-4 h-4 text-[#B697BD] flex-shrink-0" />
           <span>Desain terlalu besar untuk auto-save. Harap kurangi ukuran gambar.</span>
-          <button onClick={() => setQuotaWarning(false)} className="ml-auto font-semibold text-neutral-300 hover:text-white">
+          <button onClick={() => setQuotaWarning(false)} className="ml-auto font-semibold text-slate-300 hover:text-white cursor-pointer">
             OK
           </button>
         </div>
@@ -313,6 +379,24 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
         <div className="text-[10px] text-neutral-500 text-center px-1 py-0.5 font-semibold select-none">
           {zoomLevel}%
         </div>
+        <div className="w-full h-px bg-neutral-200 my-0.5" />
+        <button
+          onClick={() => undoCanvas().then(() => setHistoryState({ canUndo: canUndoCanvas(), canRedo: canRedoCanvas() }))}
+          disabled={!historyState.canUndo}
+          className="p-2 hover:bg-neutral-100 text-neutral-600 hover:text-neutral-900 rounded-xl transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Undo (Ctrl+Z)"
+        >
+          <Undo2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => redoCanvas().then(() => setHistoryState({ canUndo: canUndoCanvas(), canRedo: canRedoCanvas() }))}
+          disabled={!historyState.canRedo}
+          className="p-2 hover:bg-neutral-100 text-neutral-600 hover:text-neutral-900 rounded-xl transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Redo (Ctrl+Y)"
+        >
+          <Redo2 className="w-4 h-4" />
+        </button>
+        <div className="w-full h-px bg-neutral-200 my-0.5" />
         <button
           onClick={toggleDebugOverlay}
           className={`p-2 rounded-xl transition flex items-center justify-center text-xs font-medium ${
@@ -407,16 +491,14 @@ export default function Canvas({ selectedColor, zoomLevel = 100, onZoomIn, onZoo
         })}
       </div>
 
-      {/* Delete Button - Floating Apple Pill */}
-      {hasSelection && (
-        <button
-          onClick={deleteSelectedObject}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-4 py-2 bg-red-500 hover:bg-red-600 active:scale-95 text-white text-xs font-medium rounded-full shadow-lg shadow-red-500/20 transition-all duration-150"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          Hapus Objek
-        </button>
-      )}
+      {/* Object Context Bar — appears when any user object is selected */}
+      <ObjectContextBar
+        hasSelection={hasSelection}
+        isText={selectionMeta.isText}
+        isBold={selectionMeta.isBold}
+        isItalic={selectionMeta.isItalic}
+        onStateChange={syncSelectionMeta}
+      />
     </div>
   )
 }

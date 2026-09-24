@@ -10,6 +10,8 @@ import MyImages from './left-panel/my-images'
 import TemplatePanel from './left-panel/template'
 import HelpPanel from './left-panel/help'
 
+import type { ProductColorVariant } from '@/lib/config/mockup-paths'
+
 interface MobileLeftPanelSheetProps {
   isOpen: boolean
   onClose: () => void
@@ -17,6 +19,7 @@ interface MobileLeftPanelSheetProps {
   selectedColor: string
   onColorChange: (color: string) => void
   colors: string[]
+  colorVariants?: ProductColorVariant[]
   disabledColors?: string[]
   selectedSize: string
   onSizeChange: (size: string) => void
@@ -34,6 +37,7 @@ export default function MobileLeftPanelSheet({
   selectedColor,
   onColorChange,
   colors,
+  colorVariants,
   disabledColors,
   selectedSize,
   onSizeChange,
@@ -82,6 +86,7 @@ export default function MobileLeftPanelSheet({
               selectedColor={selectedColor}
               onColorChange={onColorChange}
               colors={colors}
+              colorVariants={colorVariants}
               disabledColors={disabledColors}
               selectedSize={selectedSize}
               onSizeChange={onSizeChange}

@@ -4,6 +4,7 @@ import { useRef, useState, useCallback } from 'react'
 import { Upload, AlertTriangle } from 'lucide-react'
 import { addImageToCanvas } from '@/lib/ui/canvas-engine'
 import { useDesignStore } from '@/store/design-store'
+import { saveImageToLibrary } from './my-images'
 
 const MAX_SIZE = 5 * 1024 * 1024
 const ACCEPTED = 'image/png,image/jpeg,image/jpg'
@@ -34,6 +35,28 @@ function getImageDimensions(file: File): Promise<{ width: number; height: number
   })
 }
 
+function createThumbnail(dataUrl: string, size: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(size / img.width, size / img.height, 1)
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('no ctx')); return }
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'medium'
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/png', 0.7))
+    }
+    img.onerror = reject
+    img.src = dataUrl
+  })
+}
+
 export default function UploadImage({ selectedColor = '#FFFFFF' }: UploadImageProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -52,15 +75,30 @@ export default function UploadImage({ selectedColor = '#FFFFFF' }: UploadImagePr
 
       const reader = new FileReader()
       reader.onload = async () => {
+        const dataUrl = reader.result as string
         try {
           await addImageToCanvas(
-            reader.result as string,
+            dataUrl,
             selectedView,
             selectedCategory,
             selectedColor,
             file.name
           )
           setError('')
+
+          // Save to My Images library (thumbnail 120px, full dataUrl for re-add)
+          try {
+            const thumb = await createThumbnail(dataUrl, 120)
+            saveImageToLibrary({
+              thumbnail: thumb,
+              dataUrl,
+              name: file.name.replace(/\.[^/.]+$/, ''),
+            })
+            // Notify My Images panel via storage event
+            window.dispatchEvent(new StorageEvent('storage', { key: 'canvas_image_library' }))
+          } catch {
+            // Library save failure is non-critical — swallow silently
+          }
         } catch {
           setError('Gagal menambahkan gambar ke canvas')
         }
@@ -124,7 +162,7 @@ export default function UploadImage({ selectedColor = '#FFFFFF' }: UploadImagePr
       </div>
 
       <button
-        className="w-full py-3 px-4 bg-blue-950 text-white rounded-lg font-medium hover:bg-blue-900 transition disabled:opacity-50 flex items-center justify-center gap-2 text-sm shadow-md"
+        className="w-full py-3 px-4 bg-[#1A2B56] hover:bg-[#243B6B] text-white rounded-full font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
         onClick={() => inputRef.current?.click()}
         disabled={uploading || pendingLowRes !== null}
       >
@@ -145,12 +183,12 @@ export default function UploadImage({ selectedColor = '#FFFFFF' }: UploadImagePr
 
       {/* Quality Gate Warning Card */}
       {pendingLowRes && (
-        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-3 shadow-xs">
+        <div className="p-3.5 bg-[#F0F2F6] border border-[#C4C8D8] rounded-xl space-y-3 shadow-xs">
           <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="text-xs text-amber-900 space-y-1">
+            <AlertTriangle className="w-5 h-5 text-[#4C567A] flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-[#1A2B56] space-y-1">
               <p className="font-bold">Peringatan Kualitas Gambar (&lt; 500px)</p>
-              <p className="leading-relaxed">
+              <p className="leading-relaxed text-slate-600">
                 Dimensi gambar ini hanya <strong>{pendingLowRes.width} × {pendingLowRes.height} px</strong>. Resolusi di bawah 500px berisiko pecah atau buram saat dicetak di mesin sablon.
               </p>
             </div>
@@ -159,14 +197,14 @@ export default function UploadImage({ selectedColor = '#FFFFFF' }: UploadImagePr
             <button
               type="button"
               onClick={handleCancelLowRes}
-              className="flex-1 py-1.5 px-3 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-50 transition"
+              className="flex-1 py-1.5 px-3 bg-white border border-[#C4C8D8] text-[#1A2B56] rounded-full text-xs font-bold hover:bg-[#EDEDF2] transition cursor-pointer"
             >
               Batal
             </button>
             <button
               type="button"
               onClick={handleProceedLowRes}
-              className="flex-1 py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition"
+              className="flex-1 py-1.5 px-3 bg-[#1A2B56] hover:bg-[#243B6B] text-white rounded-full text-xs font-bold transition cursor-pointer shadow-xs"
             >
               Tetap Upload
             </button>

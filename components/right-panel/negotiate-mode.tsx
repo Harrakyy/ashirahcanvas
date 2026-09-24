@@ -18,6 +18,7 @@ interface NegotiateModeProps {
   agreedDiscount?: number | null
   onPayment?: () => void
   isProcessingPayment?: boolean
+  moq?: number
 }
 
 export default function NegotiateMode({
@@ -36,6 +37,7 @@ export default function NegotiateMode({
   agreedDiscount = null,
   onPayment,
   isProcessingPayment = false,
+  moq = 12,
 }: NegotiateModeProps) {
   const tierLabels: Record<number, string> = {
     0: 'Tidak ada diskon',
@@ -60,8 +62,12 @@ export default function NegotiateMode({
           </h2>
           <p className="text-xs text-gray-500">
             {agreedDiscount !== null
-              ? `Deal! Diskon ${agreedDiscount}%`
-              : tierLabels[currentTier]}
+              ? agreedDiscount > 0
+                ? `Deal! Diskon ${agreedDiscount}%`
+                : `Deal! Harga Normal`
+              : totalQty < 12
+                ? 'Harga Normal (Min. 12 pcs untuk diskon)'
+                : tierLabels[currentTier]}
           </p>
         </div>
       </div>
@@ -114,7 +120,7 @@ export default function NegotiateMode({
           </p>
           {agreedDiscount !== null && (
             <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
-              Deal {agreedDiscount}%
+              {agreedDiscount > 0 ? `Deal ${agreedDiscount}%` : 'Deal (Harga Normal)'}
             </span>
           )}
         </div>
@@ -141,7 +147,7 @@ export default function NegotiateMode({
           <button
             onClick={onSendMessage}
             disabled={isLoading || agreedDiscount !== null}
-            className="p-2 bg-blue-950 hover:bg-blue-900 text-white rounded-lg transition font-medium disabled:opacity-50"
+            className="p-2.5 bg-[#1A2B56] hover:bg-[#243B6B] text-white rounded-full transition font-medium disabled:opacity-50 cursor-pointer shadow-xs"
           >
             <Send className="w-4 h-4" />
           </button>
@@ -154,7 +160,7 @@ export default function NegotiateMode({
               disabled={totalQty === 0 || isProcessingPayment}
               type="button"
               onClick={onPayment}
-              className={`w-full font-semibold py-2 bg-blue-950 hover:bg-blue-900 text-white ${
+              className={`w-full font-bold h-10 rounded-full bg-[#1A2B56] hover:bg-[#243B6B] text-white cursor-pointer shadow-xs ${
                 totalQty === 0 || isProcessingPayment
                   ? 'opacity-50 cursor-not-allowed'
                   : ''
@@ -164,10 +170,10 @@ export default function NegotiateMode({
             </Button>
           )}
           <Button
-            className="w-full bg-blue-950 hover:bg-blue-900 text-white gap-2 font-medium py-2"
+            className="w-full bg-white hover:bg-neutral-50 text-[#1A2B56] border border-[#C4C8D8] rounded-full gap-2 font-bold h-10 cursor-not-allowed opacity-75"
             disabled
           >
-            <MessageCircle className="w-4 h-4" />
+            <MessageCircle className="w-4 h-4 text-[#4C567A]" />
             Chat dengan Tim Kami
           </Button>
         </div>

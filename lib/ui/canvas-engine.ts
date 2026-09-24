@@ -4,7 +4,7 @@
  * State silang dipegang lib/ui/design-state.ts; config dari lib/config/{print-areas,
  * mockup-paths}. Lihat ARCHITECTURE.md section D.
  */
-import { Canvas, FabricImage, FabricObject, Rect, Polygon, Textbox, util } from 'fabric'
+import { Canvas, FabricImage, FabricObject, Rect, Circle, Triangle, Path, Polygon, Textbox, util } from 'fabric'
 import { getPrintArea, getPrintAreaForZone } from '@/lib/config/print-areas'
 import { getMockupUrl } from '@/lib/config/mockup-paths'
 import type { PrintArea } from '@/types/print-area'
@@ -63,6 +63,7 @@ export function createCanvas(
 
   layerCounter = 0
   setActiveZone('front')
+  historyManager.init(fabricCanvas)
   if (typeof window !== 'undefined') {
     ;(window as any).__fabricCanvas = fabricCanvas
   }
@@ -265,6 +266,9 @@ export async function switchView(
   }
   setActiveZone(toZone as CanvasZone)
   fabricCanvas.discardActiveObject()
+
+  // Clear history for the zone we're leaving — each zone has its own independent history.
+  historyManager.clear()
 
   saveViewState(fromZone)
   clearUserObjects()
@@ -690,7 +694,15 @@ export async function addTextToCanvas(
   fabricCanvas.requestRenderAll()
 }
 
-export function updateSelectedText(updates: { text?: string; fontFamily?: string; fill?: string }): void {
+export function updateSelectedText(updates: {
+  text?: string
+  fontFamily?: string
+  fill?: string
+  fontWeight?: string
+  fontStyle?: string
+  textAlign?: string
+  fontSize?: number
+}): void {
   if (!fabricCanvas) return
   const active = fabricCanvas.getActiveObject()
   if (!active || !(active instanceof Textbox || (active as any).type === 'textbox')) return
@@ -707,6 +719,21 @@ export function updateSelectedText(updates: { text?: string; fontFamily?: string
   if (updates.fill !== undefined) {
     ;(active as any).set('fill', updates.fill)
   }
+  if (updates.fontWeight !== undefined) {
+    ;(active as any).set('fontWeight', updates.fontWeight)
+    ;(active as any).initDimensions?.()
+  }
+  if (updates.fontStyle !== undefined) {
+    ;(active as any).set('fontStyle', updates.fontStyle)
+    ;(active as any).initDimensions?.()
+  }
+  if (updates.textAlign !== undefined) {
+    ;(active as any).set('textAlign', updates.textAlign)
+  }
+  if (updates.fontSize !== undefined) {
+    ;(active as any).set('fontSize', Math.max(8, Math.min(200, updates.fontSize)))
+    ;(active as any).initDimensions?.()
+  }
   active.setCoords()
   fabricCanvas.requestRenderAll()
   fabricCanvas.fire('object:modified', { target: active })
@@ -719,6 +746,126 @@ export function deleteSelectedObject(): void {
   if ((active as any).isBackground || (active as any).id === '__debug_overlay__') return
   fabricCanvas.remove(active)
   fabricCanvas.discardActiveObject()
+  fabricCanvas.requestRenderAll()
+}
+
+export async function duplicateSelectedObject(): Promise<void> {
+  if (!fabricCanvas) return
+  const active = fabricCanvas.getActiveObject()
+  if (!active || (active as any).isBackground) return
+
+  const cloned = await active.clone([...USER_PROPERTIES] as any)
+  const OFFSET = 15
+  cloned.set({
+    left: (active.left ?? 0) + OFFSET,
+    top: (active.top ?? 0) + OFFSET,
+    id: generateLayerId(),
+    name: `${(active as any).name ?? 'Objek'} (copy)`,
+  })
+  if ((active as any).lockRotation) {
+    cloned.setControlVisible('mtr', false)
+  }
+  if (cloned instanceof Textbox || (cloned as any).type === 'textbox') {
+    setupTextboxScalingBehavior(cloned as Textbox)
+  }
+  fabricCanvas.add(cloned)
+  fabricCanvas.setActiveObject(cloned)
+  fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target: cloned })
+}
+
+export function flipSelectedObject(direction: 'x' | 'y'): void {
+  if (!fabricCanvas) return
+  const active = fabricCanvas.getActiveObject()
+  if (!active || (active as any).isBackground) return
+  if (direction === 'x') {
+    active.set('flipX', !active.flipX)
+  } else {
+    active.set('flipY', !active.flipY)
+  }
+  active.setCoords()
+  fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target: active })
+}
+
+export function centerSelectedObject(axis: 'h' | 'v' | 'both'): void {
+  if (!fabricCanvas) return
+  const active = fabricCanvas.getActiveObject()
+  if (!active || (active as any).isBackground) return
+
+  const canvasW = fabricCanvas.getWidth()
+  const canvasH = fabricCanvas.getHeight()
+  const bounds = active.getBoundingRect()
+  const objW = bounds.width
+  const objH = bounds.height
+
+  const updates: { left?: number; top?: number } = {}
+  if (axis === 'h' || axis === 'both') {
+    // Center within canvas and switch originX to 'left' for predictable positioning
+    updates.left = (canvasW - objW) / 2
+    active.set('originX', 'left')
+  }
+  if (axis === 'v' || axis === 'both') {
+    updates.top = (canvasH - objH) / 2
+    active.set('originY', 'top')
+  }
+  active.set(updates)
+  active.setCoords()
+  fabricCanvas.requestRenderAll()
+  fabricCanvas.fire('object:modified', { target: active })
+}
+
+export type ShapeType = 'rect' | 'circle' | 'triangle' | 'star' | 'arrow' | 'line'
+
+export function addShapeToCanvas(type: ShapeType, fill = '#000000'): void {
+  if (!fabricCanvas) return
+
+  const canvasW = fabricCanvas.getWidth()
+  const canvasH = fabricCanvas.getHeight()
+  const baseOpts = {
+    left: canvasW / 2,
+    top: canvasH / 2,
+    originX: 'center' as const,
+    originY: 'center' as const,
+    fill,
+    selectable: true,
+    hasControls: true,
+    hasBorders: true,
+    lockRotation: true,
+    id: generateLayerId(),
+    name: type.charAt(0).toUpperCase() + type.slice(1),
+    view: getActiveZone(),
+  }
+
+  let shape: FabricObject
+
+  if (type === 'rect') {
+    shape = new Rect({ ...baseOpts, width: 120, height: 80, rx: 4, ry: 4 })
+  } else if (type === 'circle') {
+    shape = new Circle({ ...baseOpts, radius: 60 })
+  } else if (type === 'triangle') {
+    shape = new Triangle({ ...baseOpts, width: 100, height: 100 })
+  } else if (type === 'star') {
+    // 5-point star via SVG path
+    const starPath = 'M 0 -80 L 18.7 -58 L 47.6 -61.8 L 28.2 -39.3 L 47.6 -18.7 L 19.1 -22.5 L 0 0 L -19.1 -22.5 L -47.6 -18.7 L -28.2 -39.3 L -47.6 -61.8 L -18.7 -58 Z'
+    shape = new Path(starPath, { ...baseOpts, fill })
+  } else if (type === 'arrow') {
+    const arrowPath = 'M -60 -15 L 10 -15 L 10 -35 L 60 0 L 10 35 L 10 15 L -60 15 Z'
+    shape = new Path(arrowPath, { ...baseOpts, fill })
+  } else {
+    // line
+    shape = new Rect({ ...baseOpts, width: 120, height: 4, rx: 2, ry: 2 })
+  }
+
+  shape.setControlVisible('mtr', false)
+
+  const area = getPrintAreaForZone(getActiveZone())
+  if (area) {
+    applyPrintAreaClip(shape, area)
+  }
+
+  fabricCanvas.add(shape)
+  fabricCanvas.setActiveObject(shape)
   fabricCanvas.requestRenderAll()
 }
 
@@ -865,4 +1012,120 @@ export function selectLayerById(id: string): void {
     fabricCanvas.discardActiveObject()
   }
   fabricCanvas.requestRenderAll()
+}
+
+// ── History Manager (Undo / Redo) ────────────────────────────────
+//
+// Per-zone in-memory history. Each canvas event pushes a serialized snapshot
+// of all user objects. Max 30 entries — older entries are dropped from the front.
+// Snapshots are produced via serializeUserObjects() (same path used by auto-save)
+// so the round-trip revive path is already tested.
+
+const MAX_HISTORY = 30
+
+class HistoryManager {
+  private stack: string[] = []
+  private cursor = -1 // points to current snapshot in stack
+  private canvas: Canvas | null = null
+  private ignoreNext = false // prevent push during undo/redo restores
+
+  init(canvas: Canvas): void {
+    // Detach from any previous canvas instance
+    if (this.canvas) {
+      this.canvas.off('object:added', this._onChanged)
+      this.canvas.off('object:modified', this._onChanged)
+      this.canvas.off('object:removed', this._onChanged)
+    }
+    this.canvas = canvas
+    this.stack = []
+    this.cursor = -1
+    canvas.on('object:added', this._onChanged)
+    canvas.on('object:modified', this._onChanged)
+    canvas.on('object:removed', this._onChanged)
+  }
+
+  clear(): void {
+    this.stack = []
+    this.cursor = -1
+  }
+
+  private _onChanged = (): void => {
+    if (this.ignoreNext) return
+    if (!this.canvas) return
+    const snapshot = serializeUserObjects(this.canvas)
+    // Discard any redo entries ahead of cursor
+    this.stack = this.stack.slice(0, this.cursor + 1)
+    this.stack.push(snapshot)
+    if (this.stack.length > MAX_HISTORY) {
+      this.stack.shift()
+    }
+    this.cursor = this.stack.length - 1
+  }
+
+  canUndo(): boolean {
+    return this.cursor > 0
+  }
+
+  canRedo(): boolean {
+    return this.cursor < this.stack.length - 1
+  }
+
+  async undo(): Promise<void> {
+    if (!this.canvas || !this.canUndo()) return
+    this.cursor--
+    await this._applySnapshot(this.stack[this.cursor])
+  }
+
+  async redo(): Promise<void> {
+    if (!this.canvas || !this.canRedo()) return
+    this.cursor++
+    await this._applySnapshot(this.stack[this.cursor])
+  }
+
+  private async _applySnapshot(snapshot: string): Promise<void> {
+    if (!this.canvas) return
+    this.ignoreNext = true
+    try {
+      // Remove all user objects without triggering history push
+      const toRemove = this.canvas.getObjects().filter(isUserObject)
+      for (const obj of toRemove) this.canvas.remove(obj)
+
+      const parsed = JSON.parse(snapshot) as { objects?: any[] }
+      const objects = parsed.objects ?? []
+      if (objects.length > 0) {
+        const revived = (await util.enlivenObjects(objects)) as FabricObject[]
+        for (const obj of revived) {
+          if ((obj as any).lockRotation) obj.setControlVisible('mtr', false)
+          if (obj instanceof Textbox || (obj as any).type === 'textbox') {
+            setupTextboxScalingBehavior(obj as Textbox)
+          }
+          this.canvas.add(obj)
+        }
+      }
+      this.canvas.discardActiveObject()
+      this.canvas.requestRenderAll()
+      // Sync auto-save state after undo/redo
+      setViewState(getActiveZone(), snapshot)
+    } finally {
+      this.ignoreNext = false
+    }
+  }
+}
+
+export const historyManager = new HistoryManager()
+
+export function undoCanvas(): Promise<void> {
+  return historyManager.undo()
+}
+
+export function redoCanvas(): Promise<void> {
+  return historyManager.redo()
+}
+
+export function canUndoCanvas(): boolean {
+  return historyManager.canUndo()
+}
+
+export function canRedoCanvas(): boolean {
+  return historyManager.canRedo()
 }

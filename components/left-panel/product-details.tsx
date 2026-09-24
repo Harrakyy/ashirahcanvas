@@ -16,10 +16,13 @@ import { useDesignStore } from '@/store/design-store'
 import { getProductById } from '@/lib/config/products'
 import { Info, Ruler } from 'lucide-react'
 
+import { getColorName, type ProductColorVariant } from '@/lib/config/mockup-paths'
+
 interface ProductDetailsProps {
   selectedColor: string
   onColorChange: (color: string) => void
   colors: string[]
+  colorVariants?: ProductColorVariant[]
   disabledColors?: string[]
   selectedSize: string
   onSizeChange: (size: string) => void
@@ -47,6 +50,7 @@ export default function ProductDetails({
   selectedColor,
   onColorChange,
   colors,
+  colorVariants = [],
   disabledColors = [],
   selectedSize,
   onSizeChange,
@@ -61,14 +65,18 @@ export default function ProductDetails({
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false)
 
-  const { selectedProductId, selectedCategory } = useDesignStore()
+  const { selectedProductId, selectedCategory, productDetails } = useDesignStore()
 
   const currentProduct = getProductById(selectedProductId, selectedCategory)
-  const productName = currentProduct?.name || 'Premium Cotton T-shirt'
+  const productName = productDetails?.name || currentProduct?.name || 'Premium Cotton T-shirt'
   const productDescription =
+    productDetails?.description ||
     currentProduct?.description ||
     'Premium cotton t-shirt dengan material berkualitas tinggi, nyaman dipakai sepanjang hari. Cocok untuk kebutuhan personal atau corporate branding dengan hasil cetak yang sempurna.'
-  const productSpecs = currentProduct?.material || '100% cotton ring spun preshrunk jersey knit'
+
+  const hasCustomVariants = Array.isArray(colorVariants) && colorVariants.length > 0
+  const currentColorLabel = getColorName(selectedColor)
+  const productSpecs = productDetails?.material || currentProduct?.material || '100% cotton ring spun preshrunk jersey knit'
 
   return (
     <div className="p-4 space-y-6">
@@ -204,45 +212,62 @@ export default function ProductDetails({
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-gray-900">
           Warna:{' '}
-          <span className="font-semibold">
-            {selectedColor === '#000000'
-              ? 'Hitam'
-              : selectedColor === '#FFFFFF'
-                ? 'Putih'
-                : selectedColor === '#FF0000'
-                  ? 'Merah'
-                  : selectedColor === '#0000FF'
-                    ? 'Biru'
-                    : 'Custom'}
+          <span className="font-semibold text-blue-950">
+            {currentColorLabel}
           </span>
         </h4>
-        <div className="grid grid-cols-8 gap-2">
-          {colors.map((color) => {
-            const isDisabled = disabledColors.includes(color)
-            return (
-              <button
-                key={color}
-                onClick={() => {
-                  if (isDisabled) return
-                  onColorChange(color)
-                }}
-                disabled={isDisabled}
-                className={`w-8 h-8 rounded-full transition-all ring-offset-2 ${
-                  isDisabled
-                    ? 'opacity-25 cursor-not-allowed'
-                    : selectedColor === color
-                      ? 'ring-2 ring-blue-950 ring-offset-2'
-                      : 'hover:ring-2 hover:ring-gray-400 hover:ring-offset-1'
-                }`}
-                style={{
-                  backgroundColor: color,
-                  border: isDisabled ? '1px solid #e5e7eb' : selectedColor === color ? '2px solid #1a1a4d' : '1px solid #d1d5db',
-                }}
-                title={isDisabled ? `${color} (segera hadir)` : color}
-              />
-            )
-          })}
-        </div>
+
+        {hasCustomVariants ? (
+          <div className="flex flex-wrap gap-2.5">
+            {colorVariants.map((variant) => {
+              const isSelected = selectedColor?.trim().toUpperCase() === variant.hex?.trim().toUpperCase()
+              return (
+                <button
+                  key={variant.hex + variant.name}
+                  onClick={() => onColorChange(variant.hex)}
+                  className={`w-8 h-8 rounded-full transition-all ring-offset-2 flex items-center justify-center ${
+                    isSelected
+                      ? 'ring-2 ring-blue-950 ring-offset-2 scale-105 shadow-sm'
+                      : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1'
+                  }`}
+                  style={{
+                    backgroundColor: variant.hex,
+                    border: isSelected ? '2px solid #1a1a4d' : '1px solid #d1d5db',
+                  }}
+                  title={variant.name}
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-8 gap-2">
+            {colors.map((color) => {
+              const isDisabled = disabledColors.includes(color)
+              return (
+                <button
+                  key={color}
+                  onClick={() => {
+                    if (isDisabled) return
+                    onColorChange(color)
+                  }}
+                  disabled={isDisabled}
+                  className={`w-8 h-8 rounded-full transition-all ring-offset-2 ${
+                    isDisabled
+                      ? 'opacity-25 cursor-not-allowed'
+                      : selectedColor === color
+                        ? 'ring-2 ring-blue-950 ring-offset-2'
+                        : 'hover:ring-2 hover:ring-gray-400 hover:ring-offset-1'
+                  }`}
+                  style={{
+                    backgroundColor: color,
+                    border: isDisabled ? '1px solid #e5e7eb' : selectedColor === color ? '2px solid #1a1a4d' : '1px solid #d1d5db',
+                  }}
+                  title={isDisabled ? `${color} (segera hadir)` : color}
+                />
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Specifications */}

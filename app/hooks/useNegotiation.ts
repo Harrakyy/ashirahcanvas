@@ -12,6 +12,7 @@ interface UseNegotiationParams {
   color: string
   totalQty: number
   unitPrice: number
+  moq?: number
 }
 
 export function useNegotiation({
@@ -20,6 +21,7 @@ export function useNegotiation({
   color,
   totalQty,
   unitPrice,
+  moq = 12,
 }: UseNegotiationParams) {
   const router = useRouter()
 
@@ -102,12 +104,43 @@ export function useNegotiation({
 
   useEffect(() => {
     const savedSessionId = localStorage.getItem('negotiationSessionId')
-    if (savedSessionId) {
-      restoreSession(savedSessionId)
+    const rawFingerprint = localStorage.getItem('negotiationSessionFingerprint')
+
+    if (savedSessionId && rawFingerprint) {
+      try {
+        const savedFingerprint = JSON.parse(rawFingerprint)
+        const paramsMatch =
+          savedFingerprint &&
+          savedFingerprint.quantity === totalQty &&
+          savedFingerprint.productId === productId &&
+          savedFingerprint.color === color
+
+        if (paramsMatch) {
+          restoreSession(savedSessionId)
+        } else {
+          // Spec changed (e.g. user selected different quantity/color/product), clear old session
+          localStorage.removeItem('negotiationSessionId')
+          localStorage.removeItem('negotiationSessionFingerprint')
+          setSessionId(null)
+          setChatMessages([])
+          setCurrentTier(0)
+          setAgreedDiscount(null)
+          setCurrentPrice(unitPrice)
+        }
+      } catch {
+        localStorage.removeItem('negotiationSessionId')
+        localStorage.removeItem('negotiationSessionFingerprint')
+      }
+    } else if (savedSessionId && !rawFingerprint) {
+      localStorage.removeItem('negotiationSessionId')
     }
-  }, [restoreSession])
+  }, [restoreSession, totalQty, productId, color, unitPrice])
 
   const handleModeChange = useCallback(async (mode: 'review' | 'negotiate') => {
+    if (mode === 'negotiate' && totalQty < 1) {
+      alert('Silakan tentukan jumlah pesanan terlebih dahulu.')
+      return
+    }
     setRightPanelMode(mode)
     if (mode !== 'negotiate') return
 
@@ -141,7 +174,7 @@ export function useNegotiation({
       }])
       await initSession(true)
     }
-  }, [sessionId, chatMessages.length, initSession, totalQty, color, unitPrice, productId])
+  }, [sessionId, chatMessages.length, initSession, totalQty, color, unitPrice, productId, moq])
 
   const handleSendMessage = useCallback(async () => {
     if (!currentMessage.trim() || isLoading) return
@@ -197,54 +230,115 @@ export function useNegotiation({
   const handlePayment = useCallback(async () => {
     if (!sessionId || agreedDiscount === null || isProcessingPayment) return
 
+    if (totalQty < 1) {
+      alert('Jumlah pesanan tidak valid. Tentukan jumlah pesanan terlebih dahulu.')
+      return
+    }
+
+    if (totalQty < 12 && agreedDiscount > 0) {
+      alert('Diskon hanya berlaku untuk pemesanan minimal 12 pcs.')
+      return
+    }
+
     setIsProcessingPayment(true)
     try {
+      // 1. Snapshot canvas and persist blueprint to storage first
+      persistVendorBlueprint()
+
+      // 2. Read blueprint snapshot from storage
+      let designBlueprint: Record<string, unknown> = {}
+      try {
+        const raw =
+          sessionStorage.getItem('vendor_blueprint') ||
+          localStorage.getItem('vendor_blueprint') ||
+          localStorage.getItem('vendorBlueprint') ||
+          localStorage.getItem('canvas_blueprint')
+        if (raw) {
+          designBlueprint = JSON.parse(raw)
+        }
+      } catch (storageErr) {
+        console.warn('[AshirahBot] Could not read blueprint from storage:', storageErr)
+      }
+
+      // Attach canvas preview data URL if available
+      try {
+        const { getCanvas } = await import('@/lib/ui/canvas-engine')
+        const canvas = getCanvas()
+        if (canvas) {
+          const pBase64 = canvas.toDataURL()
+          if (pBase64) {
+            designBlueprint.preview_base64 = pBase64
+            designBlueprint.previewBase64 = pBase64
+            if (!designBlueprint.design_assets) {
+              designBlueprint.design_assets = {} as any
+            }
+            (designBlueprint.design_assets as any).preview_base64 = pBase64
+          }
+        }
+      } catch (canvasErr) {
+        console.warn('[AshirahBot] Could not capture canvas preview:', canvasErr)
+      }
+
+      // 3. Request payment creation and DB order record
       const res = await fetch('/api/payment/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({
+          sessionId,
+          designBlueprint,
+        }),
       })
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Payment init failed' }))
-        throw new Error(err.error || 'Payment init failed')
-      }
-
-      const { token, orderId } = await res.json()
-
-      const snap = (window as any).snap
-      if (!snap) {
-        alert('Sistem pembayaran belum siap. Silakan refresh halaman.')
+        alert(err.error || 'Gagal memulai pembayaran. Silakan coba lagi.')
         return
       }
 
-      snap.pay(token, {
-        onSuccess: (result: any) => {
-          persistVendorBlueprint()
-          router.push(`/payment/success?order_id=${encodeURIComponent(result.order_id || '')}`)
-        },
-        onPending: (result: any) => {
-          persistVendorBlueprint()
-          router.push(`/payment/success?order_id=${encodeURIComponent(result.order_id || '')}`)
-        },
-        onError: (result: any) => {
-          console.error('[AshirahBot] Payment error:', result)
-          alert('Pembayaran gagal. Silakan coba lagi.')
-        },
-      })
+      const { paymentUrl, redirectUrl, orderId, orderNumber } = await res.json()
+      const targetUrl = paymentUrl || redirectUrl
+
+      // Clean up consumed negotiation session
+      localStorage.removeItem('negotiationSessionId')
+      localStorage.removeItem('negotiationSessionFingerprint')
+      setSessionId(null)
+      setChatMessages([])
+      setAgreedDiscount(null)
+      setCurrentTier(0)
+
+      if (orderId) {
+        localStorage.setItem('lastOrderId', orderId)
+      }
+      if (orderNumber) {
+        localStorage.setItem('lastOrderNumber', orderNumber)
+      }
+
+      if (targetUrl) {
+        window.location.href = targetUrl
+      } else {
+        router.push(`/payment/success?order_id=${encodeURIComponent(orderNumber || orderId || '')}`)
+      }
     } catch (error) {
       console.error('[AshirahBot] Payment init failed:', error)
       alert(error instanceof Error ? error.message : 'Gagal memulai pembayaran. Silakan coba lagi.')
     } finally {
       setIsProcessingPayment(false)
     }
-  }, [sessionId, agreedDiscount, isProcessingPayment, router])
+  }, [sessionId, agreedDiscount, isProcessingPayment, router, totalQty, moq])
 
   const handleSimulateCheckout = useCallback(() => {
     if (isProcessingPayment) return
     setIsProcessingPayment(true)
     try {
       persistVendorBlueprint()
+      // Clean up negotiation session on simulation
+      localStorage.removeItem('negotiationSessionId')
+      localStorage.removeItem('negotiationSessionFingerprint')
+      setSessionId(null)
+      setChatMessages([])
+      setAgreedDiscount(null)
+      setCurrentTier(0)
+
       const orderId = `SIM-${Date.now()}`
       router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
     } finally {

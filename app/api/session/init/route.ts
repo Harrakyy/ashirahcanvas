@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       let systemPrompt: string
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
         systemPrompt = `${BASE_PERSONA_PROMPT}
-SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima kasih tertarik ${category.toLowerCase()} custom Ashirah, tanya ada yang bisa dibantu. No harga/diskon. Maks 2 kalimat.`
+SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima kasih tertarik ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs berlaku harga normal Rp${quote.unitPrice.toLocaleString('id-ID')}/pcs, diskon konveksi tersedia mulai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs. Tanya ada yang bisa dibantu. Maks 2 kalimat.`
       } else {
         systemPrompt = `${BASE_PERSONA_PROMPT}
 SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima kasih tertarik ${category.toLowerCase()} custom Ashirah, tanya ada yang bisa dibantu. JANGAN sebut harga/diskon/%. Maks 2 kalimat.`
@@ -80,7 +80,7 @@ SITUASI: Greeting awal, customer belum order. Sapa "Hai kak!" + 1 emoji, terima 
     } catch {
       const unitPrice = quote.unitPrice
       if (totalQty < MINIMUM_ORDER_FOR_DISCOUNT) {
-        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), harga normalnya di Rp ${unitPrice.toLocaleString('id-ID')}/pcs 😊`
+        initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Untuk pesanan ${totalQty} pcs (${color}), berlaku harga normal Rp ${unitPrice.toLocaleString('id-ID')}/pcs ya kak (diskon konveksi mulai ${MINIMUM_ORDER_FOR_DISCOUNT} pcs). Ada yang bisa dibantu kak? 😊`
       } else {
         initialMessage = `Halo kak! 👋 Terima kasih sudah tertarik dengan ${category.toLowerCase()} custom Ashirah. Ada yang bisa dibantu kak? 😊`
       }

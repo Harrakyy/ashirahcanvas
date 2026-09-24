@@ -10,4 +10,6 @@ export interface PriceQuote {
   logoPrice: number
   textPrice: number
   unitPrice: number
+  moq?: number
+  minOrderForDiscount?: number
 }

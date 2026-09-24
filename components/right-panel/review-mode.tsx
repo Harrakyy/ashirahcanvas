@@ -15,6 +15,7 @@ interface ReviewModeProps {
   onSimulateCheckout?: () => void
   isSimulatingCheckout?: boolean
   isQuoteLoading?: boolean
+  moq?: number
 }
 
 export default function ReviewMode({
@@ -31,6 +32,7 @@ export default function ReviewMode({
   onSimulateCheckout,
   isSimulatingCheckout = false,
   isQuoteLoading = false,
+  moq = 12,
 }: ReviewModeProps) {
   return (
     <>
@@ -52,7 +54,18 @@ export default function ReviewMode({
 
         {/* Quantity Table */}
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-gray-900">Jumlah Pesanan</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-900">Jumlah Pesanan</h3>
+            {totalQty >= 12 ? (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                🎉 Diskon Grosir Aktif (Nego AI)
+              </span>
+            ) : totalQty > 0 ? (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                Harga Normal
+              </span>
+            ) : null}
+          </div>
           <div className="space-y-2">
             {sizes.map((size) => (
               <div key={size} className="flex items-center justify-between gap-3">
@@ -67,10 +80,34 @@ export default function ReviewMode({
               </div>
             ))}
           </div>
-          <div className="pt-2 border-t border-gray-200 flex justify-between">
+          <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
             <span className="text-sm font-medium text-gray-700">Total:</span>
-            <span className="text-sm font-bold text-gray-900">{totalQty} pcs</span>
+            <div className="text-right">
+              <span className="text-sm font-bold text-gray-900">
+                {totalQty} pcs
+              </span>
+            </div>
           </div>
+
+          {totalQty > 0 && totalQty < 12 && (
+            <div className="p-2.5 rounded-lg bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <span>💡</span>
+                <span>Pesan <strong>{12 - totalQty} pcs</strong> lagi untuk dapat diskon khusus (min. 12 pcs).</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const diff = 12 - totalQty
+                  const targetSize = Object.entries(quantities).find(([_, q]) => q > 0)?.[0] || 'L'
+                  onQuantityChange(targetSize, (quantities[targetSize] || 0) + diff)
+                }}
+                className="shrink-0 font-bold text-[11px] text-blue-700 underline hover:text-blue-900 cursor-pointer"
+              >
+                + Jadi 12 pcs
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Total Price */}
@@ -87,10 +124,10 @@ export default function ReviewMode({
         <Button
           onClick={onCustomNow}
           disabled={totalQty === 0}
-          className={`w-full font-bold py-6 text-lg ${
+          className={`w-full font-bold h-12 text-base rounded-full ${
             totalQty === 0
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-blue-950 hover:bg-blue-900 text-white'
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              : 'bg-[#1A2B56] hover:bg-[#243B6B] text-white cursor-pointer shadow-md'
           }`}
         >
           Custom Now
@@ -98,15 +135,17 @@ export default function ReviewMode({
         {onSimulateCheckout && (
           <Button
             onClick={onSimulateCheckout}
-            disabled={isSimulatingCheckout}
-            className="w-full gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium py-4"
+            disabled={isSimulatingCheckout || totalQty === 0}
+            className={`w-full gap-2 bg-[#1A2B56] hover:bg-[#243B6B] text-white font-bold h-10 rounded-full shadow-xs cursor-pointer ${
+              totalQty === 0 ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             Simulasi Checkout (Blueprint Demo)
           </Button>
         )}
         {totalQty === 0 && (
           <p className="text-xs text-gray-400 text-center">
-            Masukkan jumlah pesanan terlebih dahulu
+            Masukkan jumlah pesanan terlebih dahulu (Bisa pesan mulai 1 pcs)
           </p>
         )}
       </div>

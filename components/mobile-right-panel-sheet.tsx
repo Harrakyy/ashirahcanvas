@@ -32,6 +32,7 @@ interface MobileRightPanelSheetProps {
   isProcessingPayment?: boolean
   onSimulateCheckout?: () => void
   isSimulatingCheckout?: boolean
+  moq?: number
 }
 
 export default function MobileRightPanelSheet({
@@ -60,6 +61,7 @@ export default function MobileRightPanelSheet({
   isProcessingPayment = false,
   onSimulateCheckout,
   isSimulatingCheckout = false,
+  moq = 12,
 }: MobileRightPanelSheetProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -135,6 +137,7 @@ export default function MobileRightPanelSheet({
               onCustomNow={() => onModeChange('negotiate')}
               onSimulateCheckout={onSimulateCheckout}
               isSimulatingCheckout={isSimulatingCheckout}
+              moq={moq}
             />
           )}
 
@@ -155,6 +158,7 @@ export default function MobileRightPanelSheet({
               agreedDiscount={agreedDiscount}
               onPayment={onPayment}
               isProcessingPayment={isProcessingPayment}
+              moq={moq}
             />
           )}
         </div>

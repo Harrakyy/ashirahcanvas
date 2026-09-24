@@ -36,6 +36,19 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  --color-ashira-black: var(--ashira-black);
+  --color-ashira-navy-deep: var(--ashira-navy-deep);
+  --color-ashira-navy-dark: var(--ashira-navy-dark);
+  --color-ashira-navy-mid: var(--ashira-navy-mid);
+  --color-ashira-slate-blue: var(--ashira-slate-blue);
+  --color-ashira-white: var(--ashira-white);
+  --color-ashira-cream: var(--ashira-cream);
+  --color-ashira-silver-light: var(--ashira-silver-light);
+  --color-ashira-silver-mid: var(--ashira-silver-mid);
+  --color-ashira-navy-teal: var(--ashira-navy-teal);
+  --color-ashira-lilac: var(--ashira-lilac);
+  --color-ashira-lilac-light: var(--ashira-lilac-light);
+  --color-ashira-lilac-pink: var(--ashira-lilac-pink);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -47,24 +60,39 @@
 
 :root {
   color-scheme: light;
+  /* Ashira Brand Palette */
+  --ashira-black: #0A0A0F;
+  --ashira-navy-deep: #0D102A;
+  --ashira-navy-dark: #0F152E;
+  --ashira-navy-mid: #1A2B56;
+  --ashira-slate-blue: #4C567A;
+  --ashira-white: #FFFFFF;
+  --ashira-cream: #F3F4F1;
+  --ashira-silver-light: #EDEDF2;
+  --ashira-silver-mid: #C4C8D8;
+  --ashira-navy-teal: #0F1A3A;
+  --ashira-lilac: #B697BD;
+  --ashira-lilac-light: #C7A9D0;
+  --ashira-lilac-pink: #F0B8C8;
+
   --background: oklch(0.99 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #1a1a4d;
+  --primary: #1A2B56;
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.95 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: #1a1a4d;
+  --secondary: #EDEDF2;
+  --secondary-foreground: #0F152E;
+  --muted: #EDEDF2;
+  --muted-foreground: #4C567A;
+  --accent: #1A2B56;
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: #1a1a4d;
+  --border: #E2E4E9;
+  --input: #E2E4E9;
+  --ring: #1A2B56;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

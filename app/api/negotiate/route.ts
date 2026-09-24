@@ -58,14 +58,15 @@ export async function POST(request: Request) {
       const discount = getDiscountPercent(session.currentTier)
       const total = getTotalPrice(session)
 
-      const acceptSystemPrompt = buildSystemPrompt(session) + `\n\nCustomer SETUJU. Konfirmasi harga final Rp${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%), total Rp${total.toLocaleString('id-ID')} untuk ${session.quantity}pcs. Terima kasih, ramah.`
+      const discountText = discount > 0 ? `(diskon ${discount}%)` : `(harga normal)`
+      const acceptSystemPrompt = buildSystemPrompt(session) + `\n\nCustomer SETUJU. Konfirmasi harga final Rp${offeredPrice.toLocaleString('id-ID')}/pcs ${discountText}, total Rp${total.toLocaleString('id-ID')} untuk ${session.quantity}pcs. Terima kasih, ramah.`
 
       try {
         const response = await generateNegotiationResponse(acceptSystemPrompt, message, 'accept')
         aiMessage = validateAIResponse(response, session)
       } catch (error) {
         console.error('[AshirahBot] ACCEPT branch Groq FAILED:', error)
-        aiMessage = `Mantap kak! ✅ Terima kasih sudah deal ya. Untuk ${session.quantity} pcs, harga finalnya Rp ${offeredPrice.toLocaleString('id-ID')}/pcs (diskon ${discount}%), total Rp ${total.toLocaleString('id-ID')}. Pesanan akan segera kami proses! 🎉`
+        aiMessage = `Mantap kak! ✅ Terima kasih sudah deal ya. Untuk ${session.quantity} pcs, harga finalnya Rp ${offeredPrice.toLocaleString('id-ID')}/pcs ${discountText}, total Rp ${total.toLocaleString('id-ID')}. Pesanan akan segera kami proses! Silakan klik tombol pembayaran di bawah ya kak 🎉`
       }
 
       session.messages.push({
