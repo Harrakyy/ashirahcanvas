@@ -407,6 +407,26 @@ PENTING: Jangan ubah logika session token atau helper Drizzle lainnya yang sudah
 
 ---
 
+### 4. Kredensial Pengujian API (Biteship & Duitku Sandbox)
+
+Untuk mempermudah Rahmah dan tim melakukan pengujian API via Postman atau cURL secara langsung, gunakan konfigurasi kredensial testing resmi dari `.env.testing` berikut:
+
+```env
+# Biteship Ekspedisi API Live Testing
+BITESHIP_API_KEY=biteship_live.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiQXNoaXJhaCIsInVzZXJJZCI6IjZhYWJkZWU5MDE4MmQ2YzVmM2ZmNTRmMSIsImlhdCI6MTc5MDA3ODU3OX0.X_JeBPB_9mVUZp4kcOdywFC6igpQgz3l33E1BrM5OUc
+BITESHIP_BASE_URL=https://api.biteship.com/v1
+BITESHIP_ENV=production
+
+# Duitku Payment Gateway Sandbox Testing
+DUITKU_MERCHANT_CODE=DS35533
+DUITKU_API_KEY=bfa8027d30754803f736d8b4a0533276
+DUITKU_ENV=sandbox
+DUITKU_CALLBACK_URL=http://localhost:3000/api/webhook/duitku
+DUITKU_RETURN_URL=http://localhost:3000/payment/success
+```
+
+---
+
 ## 🔍 Checklist Review Pemilik Proyek (Panduan Menguji Hasil Kerja Mereka)
 
 Gunakan daftar ini untuk menguji hasil kerja Keisha dan Rahmah secara langsung di browser:
