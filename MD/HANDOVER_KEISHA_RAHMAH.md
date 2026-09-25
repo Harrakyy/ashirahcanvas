@@ -11,37 +11,42 @@
 
 ## 📌 Ringkasan Penting untuk Tim & AI Assistant
 > [!IMPORTANT]
-> **PANDUAN KHUSUS UNTUK AI AGENT / VIBECODER (Cursor / Claude / Copilot):**
-> 1. **JANGAN PERNAH MENULIS ULANG / MEREGENERATE** file yang ditandai **`[SUDAH SELESAI / JANGAN DISENTUH]`**. Modul-modul tersebut sudah berjalan stabil dan teruji.
-> 2. Fokus hanya pada file yang ditandai **`[REMAKE / UPDATE]`** (modifikasi terarah) dan **`[BUAT BARU]`** (file baru dari 0).
-> 3. Selalu pertahankan tema warna resmi Ashirah: **Deep Navy `#1A2B56`**, latar belakang clean slate/putih, dan **TIDAK MENGGUNAKAN WARNA ORANYE**.
-> 4. Selalu jalankan `npx tsc --noEmit` di terminal untuk memastikan 0 error sebelum menyelesaikan tiket.
+> **PANDUAN KHUSUS UNTUK TIM & AI ASSISTANT (Keisha, Rahmah & AI):**
+> 1. **KODE BASELINE SUDAH AKTIF DI MAIN:** Seluruh fondasi fitur baru (modal pengiriman Biteship, formula DP 70:30 Duitku, registrasi tenant, dan landing page) **sudah selesai dan terintegrasi di branch `main`**.
+> 2. **ATURAN BRANCHING:** Tarik branch `main` (`git pull origin main`), lalu buat branch baru masing-masing dengan format tanggal: `keisha-2509` dan `rahmah-2509`.
+> 3. **KONSEP DOMINASI WARNA CANVAS STUDIO:**
+>    - **Latar Ruang Kerja (Workspace Dominan ±75%):** Bersih, terang, dan netral menggunakan **Clean White, Soft Slate, dan Glassmorphism (`#FFFFFF`, `neutral-50/100`)** agar warna kaos dan elemen sablon user tidak terdistraksi/bias.
+>    - **Aksi & Tombol Utama (CTA & Brand ±20%):** Menggunakan **Deep Navy `#1A2B56`** (hover `#243B6B`) untuk semua tombol interaktif, checkout, badge, dan header modal.
+>    - **DILARANG MENGGUNAKAN WARNA ORANYE/AMBER.**
+> 4. **UPDATE PROGRESS HARIAN:** Setiap sore pukul **16.00 WIB**, wajib mengirimkan update progress berupa foto atau screenshot pengerjaan ke grup WhatsApp.
+> 5. Selalu jalankan `npx tsc --noEmit` di terminal untuk memastikan 0 error sebelum membuat Pull Request (PR).
 
 ---
 
-## 📊 Inventori Status Kode: Apa yang Sudah Jadi vs Perlu Dikerjakan
+## 📊 Inventori Status Kode: Apa yang Sudah Jadi di Main
 
-Gunakan tabel ini sebagai acuan utama agar Keisha dan Rahmah tidak membuang waktu mengerjakan hal yang sebenarnya sudah selesai di codebase:
+Semua modul inti berikut telah terpasang dan lolos typecheck di branch `main`:
 
 | Kategori | File Path / Modul | Status | Keterangan untuk Developer |
 | :--- | :--- | :---: | :--- |
-| **Auth BE** | `app/api/auth/register/route.ts` | 🟢 **SUDAH SELESAI** | Validasi email, hash bcrypt, JWT session cookie sudah aktif. |
+| **Auth BE** | `app/api/auth/register/route.ts` | 🟢 **SUDAH SELESAI** | Validasi email, hash bcrypt, JWT session cookie aktif. |
 | **Auth BE** | `app/api/auth/login/route.ts` | 🟢 **SUDAH SELESAI** | Mendukung login password & quick login 3 role. |
-| **Auth FE** | `app/register/page.tsx` | 🟢 **SUDAH SELESAI** | Halaman register sudah ada UI-nya & terhubung ke API register. |
+| **Auth FE** | `app/register/page.tsx` | 🟢 **SUDAH SELESAI** | Halaman register sudah ada UI-nya & terhubung ke API. |
 | **Auth FE** | `app/login/page.tsx` | 🟢 **SUDAH SELESAI** | Sudah ada kartu quick login & link ke `/register`. |
-| **Navbar FE** | `components/header.tsx` | 🟡 **REMAKE / UPDATE** | Tambahkan tombol *"Daftar Akun"* di sebelah *"Masuk"* saat guest. |
+| **Navbar FE** | `components/header.tsx` | 🟢 **SUDAH SELESAI** | Tombol *"Daftar Akun"* sudah aktif bersebelahan dengan *"Masuk"*. |
 | **Ekspedisi BE** | `lib/server/shipping.ts` | 🟢 **SUDAH SELESAI** | Biteship API live (`biteship_live...`) + fallback offline aman. |
 | **Ekspedisi BE** | `app/api/shipping/rates/route.ts` | 🟢 **SUDAH SELESAI** | Perhitungan berat otomatis (tshirt 200g, jaket 550g) & tarif kurir. |
 | **Ekspedisi BE** | `app/api/shipping/create/route.ts` | 🟢 **SUDAH SELESAI** | Generate resi otomatis Biteship & kirim email status pengiriman. |
-| **Checkout FE** | `components/checkout-shipping-dialog.tsx` | 🔵 **BUAT BARU** | Modal checkout alamat + live pilihan kurir Biteship + DP 70:30. |
-| **Checkout FE** | `app/hooks/useNegotiation.ts` | 🟡 **REMAKE / UPDATE** | Buka modal checkout pengiriman sebelum menembak payment. |
-| **Payment BE** | `app/api/payment/create/route.ts` | 🟡 **REMAKE / UPDATE** | Simpan alamat, kurir, dan tagih **DP 70% + Ongkir** (bukan 100%). |
-| **Payment BE** | `app/api/payment/create-dp/route.ts` | 🟢 **SUDAH SELESAI** | Formula DP 70% + Ongkir sudah terpasang. |
-| **Payment BE** | `app/api/payment/create-final/route.ts`| 🟢 **SUDAH SELESAI** | Tagihan murni 30% pelunasan (bebas ongkir) sudah terpasang. |
-| **Tracking FE** | `app/orders/[id]/order-tracker-client.tsx`| 🟢 **SUDAH SELESAI** | Stepper, review sample approve/reject, & tombol pelunasan 30% sudah aktif! |
-| **Landing FE** | `app/page.tsx` | 🟡 **REMAKE / UPDATE** | Tambahkan Hero Section Company Profile, Cara Kerja, & Keunggulan. |
-| **Tenant BE** | `app/api/tenants/register/route.ts` | 🔵 **BUAT BARU** | Endpoint pendaftaran mandiri mitra pabrik konveksi. |
-| **Tenant BE** | `app/api/super-admin/tenants/[id]/approve` | 🔵 **BUAT BARU** | Endpoint approval vendor konveksi baru oleh Super Admin. |
+| **Checkout FE** | `components/checkout-shipping-dialog.tsx` | 🟢 **SUDAH SELESAI** | Modal checkout alamat + live pilihan kurir Biteship + DP 70:30. |
+| **Checkout FE** | `app/hooks/useNegotiation.ts` | 🟢 **SUDAH SELESAI** | Terhubung ke modal pengiriman sebelum lanjut ke payment gateway. |
+| **Payment BE** | `app/api/payment/create/route.ts` | 🟢 **SUDAH SELESAI** | Formula **DP 70% + Ongkir Biteship** sudah terhubung ke Duitku. |
+| **Payment BE** | `app/api/payment/methods/route.ts` | 🟢 **SUDAH SELESAI** | Endpoint daftar channel pembayaran Duitku (QRIS, VA, dsb.). |
+| **Payment BE** | `app/api/payment/create-dp/route.ts` | 🟢 **SUDAH SELESAI** | Formula DP 70% + Ongkir terpasang. |
+| **Payment BE** | `app/api/payment/create-final/route.ts`| 🟢 **SUDAH SELESAI** | Tagihan murni 30% pelunasan (bebas ongkir) terpasang. |
+| **Tracking FE** | `app/orders/[id]/order-tracker-client.tsx`| 🟢 **SUDAH SELESAI** | Stepper, review sample approve/reject, & tombol pelunasan 30% aktif. |
+| **Landing FE** | `app/page.tsx` | 🟢 **SUDAH SELESAI** | Hero Company Profile, 3 Langkah Mudah, & Keunggulan Konveksi aktif. |
+| **Tenant BE** | `app/api/tenants/register/route.ts` | 🟢 **SUDAH SELESAI** | Endpoint pendaftaran mandiri mitra pabrik konveksi. |
+| **Tenant BE** | `app/api/super-admin/tenants/[id]/approve` | 🟢 **SUDAH SELESAI** | Endpoint approval vendor konveksi baru oleh Super Admin. |
 
 ---
 
@@ -265,7 +270,7 @@ Berikan prompt ini langsung ke AI assistant Anda (Cursor Composer / Claude / Cop
 
 ### 💬 Prompt untuk AI Keisha (Frontend Developer):
 ```markdown
-Halo AI, saya mengerjakan tugas Frontend di project Ashirah (Next.js 16 App Router, TypeScript, Tailwind CSS, tema Deep Navy #1A2B56).
+Halo AI, saya mengerjakan tugas Frontend di project Ashirah (Next.js 16 App Router, TypeScript, Tailwind CSS, layout studio Clean White & Soft Slate dengan aksen tombol aksi Deep Navy #1A2B56).
 Tugas saya saat ini adalah:
 1. Buat komponen baru `components/checkout-shipping-dialog.tsx`.
 2. Modal ini menerima props subtotal, sessionId, quantity, dan category.
@@ -277,7 +282,7 @@ Tugas saya saat ini adalah:
    - TOTAL DP 70% + ONGKIR (Harus dibayar sekarang): Rp (Subtotal * 0.7) + Ongkir
    - Sisa Pelunasan 30% (Dibayar saat produksi beres): Rp Subtotal * 0.3
 6. Saat tombol 'Bayar DP Sekarang via Duitku' diklik, panggil endpoint `POST /api/payment/create` membawa payload alamat + kurir + ongkir, lalu redirect ke paymentUrl Duitku.
-PENTING: Gunakan styling clean dengan Tailwind, badge status elegan, dan JANGAN gunakan warna oranye!
+PENTING: Gunakan styling clean studio dengan Tailwind, latar netral putih/slate, tombol Deep Navy #1A2B56, dan JANGAN gunakan warna oranye!
 ```
 
 ---
