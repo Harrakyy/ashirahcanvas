@@ -11,6 +11,7 @@ import MobileRightPanelSheet from '@/components/mobile-right-panel-sheet'
 import { useDesignStore } from '@/store/design-store'
 import { useCanvasStore } from '@/features/canvas/store/useCanvasStore'
 import { useNegotiation } from '@/app/hooks/useNegotiation'
+import { CheckoutShippingDialog } from '@/components/checkout-shipping-dialog'
 import { saveBlueprint, BLUEPRINT_STORAGE_KEY } from '@/features/canvas/utils/exportHelpers'
 import type { PriceQuote } from '@/types/pricing'
 import type { CanvasBlueprint } from '@/features/canvas/types/blueprint'
@@ -92,6 +93,7 @@ export default function TenantEditorClient({
   const moq = 1
 
   const {
+    sessionId,
     rightPanelMode,
     chatMessages,
     currentMessage,
@@ -100,10 +102,13 @@ export default function TenantEditorClient({
     agreedDiscount,
     isLoading,
     isProcessingPayment,
+    isShippingDialogOpen,
+    setIsShippingDialogOpen,
     setCurrentMessage,
     handleModeChange,
     handleSendMessage,
     handlePayment,
+    handleProceedToPayment,
     handleSimulateCheckout,
   } = useNegotiation({
     productId: selectedProductId,
@@ -282,6 +287,16 @@ export default function TenantEditorClient({
         onSimulateCheckout={handleSimulateCheckout}
         isSimulatingCheckout={isProcessingPayment}
         moq={moq}
+      />
+
+      <CheckoutShippingDialog
+        isOpen={isShippingDialogOpen}
+        onClose={() => setIsShippingDialogOpen(false)}
+        sessionId={sessionId || ''}
+        totalQty={totalQty}
+        category={selectedCategory}
+        subtotal={total}
+        onProceedToPayment={handleProceedToPayment}
       />
     </div>
   )

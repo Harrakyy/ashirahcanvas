@@ -34,6 +34,7 @@ export function useNegotiation({
   const [agreedDiscount, setAgreedDiscount] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [isShippingDialogOpen, setIsShippingDialogOpen] = useState(false)
 
   const initSession = useCallback(async (force = false) => {
     if (!force && sessionId) return
@@ -227,7 +228,7 @@ export function useNegotiation({
     }
   }, [currentMessage, isLoading, sessionId, chatMessages.length, initSession])
 
-  const handlePayment = useCallback(async () => {
+  const handlePayment = useCallback(() => {
     if (!sessionId || agreedDiscount === null || isProcessingPayment) return
 
     if (totalQty < 1) {
@@ -240,91 +241,121 @@ export function useNegotiation({
       return
     }
 
-    setIsProcessingPayment(true)
-    try {
-      // 1. Snapshot canvas and persist blueprint to storage first
-      persistVendorBlueprint()
+    // Persist blueprint snapshot before opening dialog
+    persistVendorBlueprint()
 
-      // 2. Read blueprint snapshot from storage
-      let designBlueprint: Record<string, unknown> = {}
-      try {
-        const raw =
-          sessionStorage.getItem('vendor_blueprint') ||
-          localStorage.getItem('vendor_blueprint') ||
-          localStorage.getItem('vendorBlueprint') ||
-          localStorage.getItem('canvas_blueprint')
-        if (raw) {
-          designBlueprint = JSON.parse(raw)
-        }
-      } catch (storageErr) {
-        console.warn('[AshirahBot] Could not read blueprint from storage:', storageErr)
+    // Buka modal dialog checkout alamat & ekspedisi
+    setIsShippingDialogOpen(true)
+  }, [sessionId, agreedDiscount, isProcessingPayment, totalQty])
+
+  const handleProceedToPayment = useCallback(
+    async (shippingData: {
+      shippingAddress: {
+        name: string
+        phone: string
+        street: string
+        city: string
+        postalCode: string
+        province?: string
       }
+      courierCode: string
+      courierName: string
+      shippingCost: number
+    }) => {
+      if (!sessionId) return
 
-      // Attach canvas preview data URL if available
+      setIsProcessingPayment(true)
       try {
-        const { getCanvas } = await import('@/lib/ui/canvas-engine')
-        const canvas = getCanvas()
-        if (canvas) {
-          const pBase64 = canvas.toDataURL()
-          if (pBase64) {
-            designBlueprint.preview_base64 = pBase64
-            designBlueprint.previewBase64 = pBase64
-            if (!designBlueprint.design_assets) {
-              designBlueprint.design_assets = {} as any
-            }
-            (designBlueprint.design_assets as any).preview_base64 = pBase64
+        // 1. Snapshot canvas and persist blueprint to storage first
+        persistVendorBlueprint()
+
+        // 2. Read blueprint snapshot from storage
+        let designBlueprint: Record<string, unknown> = {}
+        try {
+          const raw =
+            sessionStorage.getItem('vendor_blueprint') ||
+            localStorage.getItem('vendor_blueprint') ||
+            localStorage.getItem('vendorBlueprint') ||
+            localStorage.getItem('canvas_blueprint')
+          if (raw) {
+            designBlueprint = JSON.parse(raw)
           }
+        } catch (storageErr) {
+          console.warn('[AshirahBot] Could not read blueprint from storage:', storageErr)
         }
-      } catch (canvasErr) {
-        console.warn('[AshirahBot] Could not capture canvas preview:', canvasErr)
+
+        // Attach canvas preview data URL if available
+        try {
+          const { getCanvas } = await import('@/lib/ui/canvas-engine')
+          const canvas = getCanvas()
+          if (canvas) {
+            const pBase64 = canvas.toDataURL()
+            if (pBase64) {
+              designBlueprint.preview_base64 = pBase64
+              designBlueprint.previewBase64 = pBase64
+              if (!designBlueprint.design_assets) {
+                designBlueprint.design_assets = {} as any
+              }
+              (designBlueprint.design_assets as any).preview_base64 = pBase64
+            }
+          }
+        } catch (canvasErr) {
+          console.warn('[AshirahBot] Could not capture canvas preview:', canvasErr)
+        }
+
+        // 3. Request payment creation with shipping data (DP 70% + Ongkir)
+        const res = await fetch('/api/payment/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            designBlueprint,
+            shippingAddress: shippingData.shippingAddress,
+            courierCode: shippingData.courierCode,
+            courierName: shippingData.courierName,
+            shippingCost: shippingData.shippingCost,
+          }),
+        })
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Payment init failed' }))
+          throw new Error(err.error || 'Gagal memulai pembayaran. Silakan coba lagi.')
+        }
+
+        const { paymentUrl, redirectUrl, orderId, orderNumber } = await res.json()
+        const targetUrl = paymentUrl || redirectUrl
+
+        // Clean up consumed negotiation session
+        localStorage.removeItem('negotiationSessionId')
+        localStorage.removeItem('negotiationSessionFingerprint')
+        setSessionId(null)
+        setChatMessages([])
+        setAgreedDiscount(null)
+        setCurrentTier(0)
+        setIsShippingDialogOpen(false)
+
+        if (orderId) {
+          localStorage.setItem('lastOrderId', orderId)
+        }
+        if (orderNumber) {
+          localStorage.setItem('lastOrderNumber', orderNumber)
+        }
+
+        if (targetUrl) {
+          window.location.href = targetUrl
+        } else {
+          router.push(`/payment/success?order_id=${encodeURIComponent(orderNumber || orderId || '')}`)
+        }
+      } catch (error) {
+        console.error('[AshirahBot] Payment init failed:', error)
+        alert(error instanceof Error ? error.message : 'Gagal memulai pembayaran. Silakan coba lagi.')
+        throw error
+      } finally {
+        setIsProcessingPayment(false)
       }
-
-      // 3. Request payment creation and DB order record
-      const res = await fetch('/api/payment/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          designBlueprint,
-        }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Payment init failed' }))
-        alert(err.error || 'Gagal memulai pembayaran. Silakan coba lagi.')
-        return
-      }
-
-      const { paymentUrl, redirectUrl, orderId, orderNumber } = await res.json()
-      const targetUrl = paymentUrl || redirectUrl
-
-      // Clean up consumed negotiation session
-      localStorage.removeItem('negotiationSessionId')
-      localStorage.removeItem('negotiationSessionFingerprint')
-      setSessionId(null)
-      setChatMessages([])
-      setAgreedDiscount(null)
-      setCurrentTier(0)
-
-      if (orderId) {
-        localStorage.setItem('lastOrderId', orderId)
-      }
-      if (orderNumber) {
-        localStorage.setItem('lastOrderNumber', orderNumber)
-      }
-
-      if (targetUrl) {
-        window.location.href = targetUrl
-      } else {
-        router.push(`/payment/success?order_id=${encodeURIComponent(orderNumber || orderId || '')}`)
-      }
-    } catch (error) {
-      console.error('[AshirahBot] Payment init failed:', error)
-      alert(error instanceof Error ? error.message : 'Gagal memulai pembayaran. Silakan coba lagi.')
-    } finally {
-      setIsProcessingPayment(false)
-    }
-  }, [sessionId, agreedDiscount, isProcessingPayment, router, totalQty, moq])
+    },
+    [sessionId, router]
+  )
 
   const handleSimulateCheckout = useCallback(() => {
     if (isProcessingPayment) return
@@ -347,6 +378,7 @@ export function useNegotiation({
   }, [isProcessingPayment, router])
 
   return {
+    sessionId,
     rightPanelMode,
     chatMessages,
     currentMessage,
@@ -355,10 +387,13 @@ export function useNegotiation({
     agreedDiscount,
     isLoading,
     isProcessingPayment,
+    isShippingDialogOpen,
+    setIsShippingDialogOpen,
     setCurrentMessage,
     handleModeChange,
     handleSendMessage,
     handlePayment,
+    handleProceedToPayment,
     handleSimulateCheckout,
   }
 }

@@ -12,7 +12,15 @@ import { getTenantMOQ } from '@/lib/server/tenant'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { sessionId, designBlueprint, shippingAddress: customShippingAddress } = body
+    const {
+      sessionId,
+      designBlueprint,
+      shippingAddress: customShippingAddress,
+      courierCode,
+      courierName,
+      shippingCost: rawShippingCost = 0,
+    } = body
+    const shippingCost = Number(rawShippingCost) || 0
 
     if (!sessionId || typeof sessionId !== 'string') {
       return NextResponse.json({ error: 'Session ID is required' }, { status: 400 })
@@ -105,7 +113,12 @@ export async function POST(request: Request) {
     }
 
     const offeredPrice = getOfferedPrice(session)
-    const grossAmount = getTotalPrice(session)
+    const subtotal = getTotalPrice(session)
+
+    // Formula 70:30 DP + Ongkir
+    const dpGoodsAmount = Math.round(subtotal * 0.7)
+    const dpAmount = dpGoodsAmount + shippingCost
+    const finalAmount = subtotal - dpGoodsAmount
 
     // 3. Create Order & initial records in DB
     const newOrder = await createOrder({
@@ -123,40 +136,55 @@ export async function POST(request: Request) {
           blueprintPerZone: (designBlueprint as Record<string, unknown>) || {},
         },
       ],
-      subtotal: grossAmount,
-      shippingCost: 0,
+      subtotal,
+      shippingCost,
       designBlueprint: designBlueprint || {},
       notes: `Pesanan via Canvas Studio & AI Negotiation (Diskon: ${session.agreedDiscount}%)`,
-      shippingAddress: finalShippingAddress,
+      shippingAddress: {
+        ...finalShippingAddress,
+        courierCode,
+        courierName,
+      },
     })
 
     const merchantOrderId = `${newOrder.orderNumber}-DP`
 
-    console.log('[Payment] Creating Duitku transaction for negotiation order:', {
+    console.log('[Payment] Creating Duitku transaction for DP 70% + Ongkir:', {
       orderId: newOrder.id,
       orderNumber: newOrder.orderNumber,
       merchantOrderId,
-      grossAmount,
-      offeredPrice,
-      quantity: session.quantity,
-      discount: session.agreedDiscount,
+      subtotal,
+      shippingCost,
+      dpAmount,
+      finalAmount,
+      courierName,
     })
 
-    // 4. Request Duitku transaction
+    // 4. Request Duitku transaction for DP 70% + Ongkir
+    const itemDetails = [
+      {
+        name: `DP 70% Produksi Kaos Custom (${session.category || 'Custom'})`,
+        price: dpGoodsAmount,
+        quantity: 1,
+      },
+    ]
+
+    if (shippingCost > 0) {
+      itemDetails.push({
+        name: `Ongkos Kirim Ekspedisi (${courierName || 'Kurir'})`,
+        price: shippingCost,
+        quantity: 1,
+      })
+    }
+
     const transaction = await duitku.createTransaction({
       merchantOrderId,
-      paymentAmount: grossAmount,
-      productDetails: `Kaos Custom Ashirah (${session.category || 'Custom'} - ${session.color}) - ${newOrder.orderNumber}`,
+      paymentAmount: dpAmount,
+      productDetails: `DP 70% + Ongkir Kaos Custom Ashirah - ${newOrder.orderNumber}`,
       email: dbCustomer?.email || user?.email || 'customer@ashirah.com',
       customerName: dbCustomer?.name || user?.name || 'Customer Ashirah',
       phoneNumber: dbCustomer?.phone || user?.phone || '',
-      itemDetails: [
-        {
-          name: `Kaos Custom (${session.category || 'Custom'} - ${session.color || 'Custom'})`,
-          price: offeredPrice,
-          quantity: session.quantity,
-        },
-      ],
+      itemDetails,
     })
 
     // 5. Insert payment record in DB
@@ -167,7 +195,7 @@ export async function POST(request: Request) {
         tenantId,
         type: 'dp',
         status: 'pending',
-        amount: grossAmount,
+        amount: dpAmount,
         duitkuReference: transaction.reference,
         duitkuMerchantCode: transaction.merchantCode,
         paymentUrl: transaction.paymentUrl,
@@ -185,6 +213,9 @@ export async function POST(request: Request) {
       redirectUrl: transaction.paymentUrl,
       orderId: newOrder.id,
       orderNumber: newOrder.orderNumber,
+      dpAmount,
+      finalAmount,
+      shippingCost,
       paymentId: paymentRecord.id,
       reference: transaction.reference,
     })

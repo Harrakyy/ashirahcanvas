@@ -35,6 +35,19 @@ export interface DuitkuPaymentResponse {
   merchantCode: string
 }
 
+export interface DuitkuPaymentMethod {
+  paymentMethod: string
+  paymentName: string
+  paymentImage: string
+  totalFee: string
+}
+
+export interface DuitkuGetPaymentMethodsResponse {
+  paymentFee: DuitkuPaymentMethod[]
+  responseCode: string
+  responseMessage: string
+}
+
 export interface DuitkuCallbackBody {
   merchantCode?: string
   amount?: string | number
@@ -208,6 +221,72 @@ export class DuitkuClient {
       return { statusCode: '99', statusMessage: 'Network error' }
     }
   }
+
+  /**
+   * Generates HMAC-SHA256 signature for fetching payment methods:
+   * HMAC-SHA256(merchantCode + amount + datetime, apiKey)
+   */
+  public generateMethodsSignature(amount: number, datetime: string): string {
+    const stringToSign = `${this.merchantCode}${amount}${datetime}`
+    return crypto.createHmac('sha256', this.apiKey).update(stringToSign).digest('hex')
+  }
+
+  /**
+   * Fetch active payment channels from Duitku API.
+   * @param amount - nominal transaksi untuk kalkulasi fee per channel
+   */
+  public async getPaymentMethods(amount: number): Promise<DuitkuPaymentMethod[]> {
+    const datetime = new Date()
+      .toISOString()
+      .replace('T', ' ')
+      .substring(0, 19)
+
+    const signature = this.generateMethodsSignature(amount, datetime)
+    const body = {
+      merchantcode: this.merchantCode,
+      amount,
+      datetime,
+      signature,
+    }
+
+    const endpoint = `${this.baseUrl}/api/merchant/paymentmethod/getpaymentmethod`
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '(no body)')
+        throw new Error(`[Duitku] HTTP ${res.status}: ${errBody}`)
+      }
+
+      const data = (await res.json()) as DuitkuGetPaymentMethodsResponse
+      if (data.responseCode !== '00') {
+        throw new Error(`[Duitku] Get payment methods failed: ${data.responseMessage}`)
+      }
+
+      return data.paymentFee || []
+    } catch (err) {
+      if (!this.isProduction && process.env.DUITKU_MOCK === 'true') {
+        return [
+          { paymentMethod: 'VA', paymentName: 'BCA Virtual Account', paymentImage: 'https://images.duitku.com/icon/BCA.png', totalFee: '4000' },
+          { paymentMethod: 'M2', paymentName: 'Mandiri Virtual Account', paymentImage: 'https://images.duitku.com/icon/MANDIRI.png', totalFee: '4000' },
+          { paymentMethod: 'SP', paymentName: 'ShopeePay / QRIS', paymentImage: 'https://images.duitku.com/icon/SP.png', totalFee: '1000' },
+        ]
+      }
+      throw err
+    }
+  }
 }
 
 export const duitku = new DuitkuClient()
+
+/**
+ * Top-level helper function compatible with route handlers.
+ */
+export async function getDuitkuPaymentMethods(amount: number): Promise<DuitkuPaymentMethod[]> {
+  return duitku.getPaymentMethods(amount)
+}

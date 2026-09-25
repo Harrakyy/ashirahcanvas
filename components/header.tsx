@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Building2,
   Package,
+  UserPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -286,15 +287,27 @@ export default function Header({ onAddToCart, tenantName }: HeaderProps) {
             </div>
           </div>
         ) : (
-          <Link href="/login">
-            <Button
-              size="sm"
-              className="gap-1.5 h-9 px-5 rounded-full bg-[#1A2B56] hover:bg-[#243B6B] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              <LogIn className="w-3.5 h-3.5 text-white" />
-              Masuk
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/register">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-9 px-4 rounded-full border-neutral-300 hover:border-[#1A2B56] hover:bg-neutral-50 text-[#1A2B56] text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-[#1A2B56]" />
+                Daftar Akun
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button
+                size="sm"
+                className="gap-1.5 h-9 px-5 rounded-full bg-[#1A2B56] hover:bg-[#243B6B] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5 text-white" />
+                Masuk
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
     </header>
