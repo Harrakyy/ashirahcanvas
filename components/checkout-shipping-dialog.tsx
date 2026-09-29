@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useId } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -46,15 +46,10 @@ export interface CheckoutShippingDialogProps {
   onClose: () => void
   sessionId: string
   totalQty: number
-  category?: string
+  category: string
   subtotal: number
   designBlueprint?: any
-  onProceedToPayment: (shippingData: {
-    shippingAddress: ShippingAddressData
-    courierCode: string
-    courierName: string
-    shippingCost: number
-  }) => Promise<void>
+  onProceedToPayment: (shippingData: any) => Promise<void>
 }
 
 export function CheckoutShippingDialog({
@@ -103,10 +98,10 @@ export function CheckoutShippingDialog({
     }
   }, [isOpen])
 
-  // Live fetch kurir when postal code has 5 digits
+  // Live fetch kurir saat kode pos selesai diketik (5 digit)
   const fetchRates = useCallback(
-    async (code: string) => {
-      if (code.length !== 5) return
+    async (destinationPostalCode: string) => {
+      if (destinationPostalCode.length !== 5) return
       setIsLoadingRates(true)
       setRatesError(null)
       try {
@@ -114,7 +109,7 @@ export function CheckoutShippingDialog({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            destinationPostalCode: code,
+            destinationPostalCode,
             quantity: totalQty,
             category,
           }),
@@ -127,7 +122,7 @@ export function CheckoutShippingDialog({
         const data = await res.json()
         if (data.rates && data.rates.length > 0) {
           setRates(data.rates)
-          // Default select the first courier
+          // Default select first courier rate returned
           setSelectedCourier(data.rates[0])
         } else {
           setRates([])
@@ -153,7 +148,7 @@ export function CheckoutShippingDialog({
     }
   }, [postalCode, fetchRates])
 
-  // 70:30 DP and Pelunasan Formula
+  // Formula Tagihan 70:30 & Ongkir
   const dpGoodsAmount = Math.round(subtotal * 0.7)
   const shippingCost = selectedCourier ? selectedCourier.price : 0
   const totalDpAmount = dpGoodsAmount + shippingCost
@@ -201,6 +196,8 @@ export function CheckoutShippingDialog({
         courierCode: selectedCourier.courierCode,
         courierName: `${selectedCourier.courierName} - ${selectedCourier.courierServiceName}`,
         shippingCost,
+        sessionId,
+        designBlueprint,
       })
     } catch (err: any) {
       console.error('[CheckoutShipping] Submit payment failed:', err)
@@ -212,7 +209,7 @@ export function CheckoutShippingDialog({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isSubmitting) onClose() }}>
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-0 border border-neutral-200 bg-white shadow-2xl rounded-2xl">
-        {/* Header */}
+        {/* Header Dialog */}
         <div className="bg-[#1A2B56] text-white px-6 py-5 rounded-t-2xl">
           <div className="flex items-center gap-2 text-blue-200 text-xs font-semibold mb-1">
             <Truck className="w-4 h-4" />
@@ -222,7 +219,7 @@ export function CheckoutShippingDialog({
             Alamat Pengiriman & Ekspedisi
           </DialogTitle>
           <DialogDescription className="text-blue-100 text-xs mt-1">
-            Pesanan Anda diproduksi dengan standar konveksi Ashirah. Lengkapi tujuan kirim untuk kalkulasi DP 70% + Ongkir.
+            Lengkapi data penerima dan pilih kurir pengiriman untuk kalkulasi tagihan DP 70% + Ongkir.
           </DialogDescription>
         </div>
 
@@ -234,11 +231,11 @@ export function CheckoutShippingDialog({
             </div>
           )}
 
-          {/* Form Alamat */}
+          {/* Field Input Alamat */}
           <div className="space-y-4">
             <h4 className="text-xs font-bold text-[#1A2B56] uppercase tracking-wider flex items-center gap-2">
               <MapPin className="w-4 h-4 text-[#1A2B56]" />
-              Data Penerima & Alamat
+              Data Penerima & Alamat Pengiriman
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -279,7 +276,7 @@ export function CheckoutShippingDialog({
 
             <div>
               <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                Alamat Lengkap (Jalan, RT/RW, No. Rumah) *
+                Alamat Jalan *
               </label>
               <textarea
                 required
@@ -294,7 +291,7 @@ export function CheckoutShippingDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Kota / Kabupaten *
+                  Kota *
                 </label>
                 <div className="relative">
                   <Building className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
@@ -311,7 +308,7 @@ export function CheckoutShippingDialog({
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Kode Pos (5 Digit) *
+                  Kode Pos (Input 5 Angka) *
                 </label>
                 <div className="relative">
                   <input
@@ -337,31 +334,31 @@ export function CheckoutShippingDialog({
             </div>
           </div>
 
-          {/* Opsi Kurir Ekspedisi */}
+          {/* Pilihan Kurir (Radio Card) */}
           <div className="space-y-3 pt-2 border-t border-neutral-100">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-[#1A2B56] uppercase tracking-wider flex items-center gap-2">
                 <Truck className="w-4 h-4 text-[#1A2B56]" />
-                Pilihan Kurir (Biteship Live)
+                Pilihan Kurir Ekspedisi
               </h4>
               {postalCode.length === 5 && !isLoadingRates && rates.length > 0 && (
                 <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Tarif Tersedia
+                  Tarif Ditemukan
                 </span>
               )}
             </div>
 
             {postalCode.length < 5 && (
               <div className="p-4 bg-neutral-50 border border-dashed border-neutral-200 rounded-xl text-center text-xs text-neutral-500">
-                Masukkan 5 digit kode pos tujuan untuk melihat daftar kurir dan ongkos kirim.
+                Masukkan 5 digit kode pos tujuan untuk melihat pilihan kurir dan ongkos kirim.
               </div>
             )}
 
             {isLoadingRates && (
               <div className="p-4 bg-neutral-50 rounded-xl flex items-center justify-center gap-2 text-xs text-[#1A2B56] font-medium">
                 <Loader2 className="w-4 h-4 animate-spin text-[#1A2B56]" />
-                Menghubungi Biteship untuk mengambil tarif terbaik...
+                Menghubungi API ekspedisi untuk mengambil tarif...
               </div>
             )}
 
@@ -414,24 +411,24 @@ export function CheckoutShippingDialog({
             )}
           </div>
 
-          {/* Rincian Tagihan 70:30 */}
+          {/* Ringkasan Tagihan 70:30 (Live Update saat kurir dipilih) */}
           <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-2.5">
             <div className="flex items-center justify-between text-xs font-bold text-[#1A2B56]">
-              <span>Rincian Pembayaran (Skema Termin 70:30)</span>
+              <span>Ringkasan Tagihan (Skema Termin 70:30)</span>
               <Badge variant="outline" className="text-[10px] border-[#1A2B56]/30 text-[#1A2B56]">
-                Garansi Sample
+                Garansi Produksi
               </Badge>
             </div>
 
             <div className="space-y-1.5 text-xs text-neutral-600">
               <div className="flex justify-between">
-                <span>Subtotal Pakaian ({totalQty} pcs)</span>
+                <span>Subtotal Kaos</span>
                 <span className="font-semibold text-neutral-900">
                   Rp {subtotal.toLocaleString('id-ID')}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Ongkos Kirim ({selectedCourier ? selectedCourier.courierName : 'Belum pilih'})</span>
+                <span>Ongkir Ekspedisi</span>
                 <span className="font-semibold text-neutral-900">
                   {selectedCourier ? `Rp ${shippingCost.toLocaleString('id-ID')}` : '-'}
                 </span>
@@ -441,9 +438,9 @@ export function CheckoutShippingDialog({
             <div className="pt-2 border-t border-neutral-200 space-y-1.5">
               <div className="flex justify-between items-center text-sm font-bold text-[#1A2B56]">
                 <div className="flex flex-col">
-                  <span>TOTAL DP 70% + ONGKIR</span>
+                  <span>Total Tagihan DP 70% + Ongkir (Bayar Sekarang)</span>
                   <span className="text-[10px] font-normal text-neutral-500">
-                    Wajib dibayar sekarang untuk mulai produksi
+                    Rp Math.round({subtotal} * 0.7) + {shippingCost}
                   </span>
                 </div>
                 <span className="text-base text-[#1A2B56]">
@@ -452,7 +449,7 @@ export function CheckoutShippingDialog({
               </div>
 
               <div className="flex justify-between items-center text-xs text-neutral-500 pt-1">
-                <span>Sisa Pelunasan 30% (Saat Baju Selesai)</span>
+                <span>Sisa Pelunasan 30% (Bayar Saat Baju Beres)</span>
                 <span className="font-semibold text-neutral-700">
                   Rp {finalAmount.toLocaleString('id-ID')}
                 </span>
@@ -460,7 +457,7 @@ export function CheckoutShippingDialog({
             </div>
           </div>
 
-          {/* Tombol Eksekusi Bayar */}
+          {/* Tombol Lanjut Pembayaran */}
           <div className="flex items-center justify-between pt-2">
             <Button
               type="button"
@@ -469,7 +466,7 @@ export function CheckoutShippingDialog({
               disabled={isSubmitting}
               className="text-xs text-neutral-500 hover:text-neutral-800 cursor-pointer"
             >
-              Kembali ke Studio
+              Kembali
             </Button>
 
             <Button
@@ -480,12 +477,12 @@ export function CheckoutShippingDialog({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Menyiapkan Invoice Duitku...</span>
+                  <span>Memproses Pembayaran...</span>
                 </>
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>Bayar DP Sekarang via Duitku →</span>
+                  <span>Lanjut Pembayaran DP Sekarang →</span>
                 </>
               )}
             </Button>
