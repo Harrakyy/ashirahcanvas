@@ -262,7 +262,7 @@ export function useNegotiation({
       courierName: string
       shippingCost: number
     }) => {
-      if (!sessionId) return
+      const isSimulation = !sessionId
 
       setIsProcessingPayment(true)
       try {
@@ -301,6 +301,20 @@ export function useNegotiation({
           }
         } catch (canvasErr) {
           console.warn('[AshirahBot] Could not capture canvas preview:', canvasErr)
+        }
+
+        if (isSimulation) {
+          // Simulation bypass - no API call
+          localStorage.removeItem('negotiationSessionId')
+          localStorage.removeItem('negotiationSessionFingerprint')
+          setChatMessages([])
+          setAgreedDiscount(null)
+          setCurrentTier(0)
+          setIsShippingDialogOpen(false)
+          
+          const orderId = `SIM-${Date.now()}`
+          router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
+          return
         }
 
         // 3. Request payment creation with shipping data (DP 70% + Ongkir)
@@ -359,23 +373,13 @@ export function useNegotiation({
 
   const handleSimulateCheckout = useCallback(() => {
     if (isProcessingPayment) return
-    setIsProcessingPayment(true)
-    try {
-      persistVendorBlueprint()
-      // Clean up negotiation session on simulation
-      localStorage.removeItem('negotiationSessionId')
-      localStorage.removeItem('negotiationSessionFingerprint')
-      setSessionId(null)
-      setChatMessages([])
-      setAgreedDiscount(null)
-      setCurrentTier(0)
-
-      const orderId = `SIM-${Date.now()}`
-      router.push(`/payment/success?order_id=${encodeURIComponent(orderId)}`)
-    } finally {
-      setIsProcessingPayment(false)
+    if (totalQty < 1) {
+      alert('Jumlah pesanan tidak valid. Tentukan jumlah pesanan terlebih dahulu.')
+      return
     }
-  }, [isProcessingPayment, router])
+    persistVendorBlueprint()
+    setIsShippingDialogOpen(true)
+  }, [isProcessingPayment, totalQty])
 
   return {
     sessionId,
