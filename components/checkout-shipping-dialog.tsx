@@ -208,7 +208,7 @@ export function CheckoutShippingDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isSubmitting) onClose() }}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-0 border border-neutral-200 bg-white shadow-2xl rounded-2xl">
+      <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-0 border border-neutral-200 bg-white shadow-2xl rounded-2xl">
         {/* Header Dialog */}
         <div className="bg-[#1A2B56] text-white px-6 py-5 rounded-t-2xl">
           <div className="flex items-center gap-2 text-blue-200 text-xs font-semibold mb-1">
@@ -251,7 +251,7 @@ export function CheckoutShippingDialog({
                     placeholder="Contoh: Budi Santoso"
                     value={receiverName}
                     onChange={(e) => setReceiverName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
+                    className="w-full pl-9 pr-3 py-2 text-xs text-[#1A2B56] border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
                   />
                 </div>
               </div>
@@ -268,7 +268,7 @@ export function CheckoutShippingDialog({
                     placeholder="Contoh: 08123456789"
                     value={receiverPhone}
                     onChange={(e) => setReceiverPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
+                    className="w-full pl-9 pr-3 py-2 text-xs text-[#1A2B56] border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
                   />
                 </div>
               </div>
@@ -284,7 +284,7 @@ export function CheckoutShippingDialog({
                 placeholder="Jl. Gatot Subroto No. 45, RT 02 / RW 04, Kel. Kuningan Barat"
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
+                className="w-full px-3 py-2 text-xs text-[#1A2B56] border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
               />
             </div>
 
@@ -301,7 +301,7 @@ export function CheckoutShippingDialog({
                     placeholder="Contoh: Jakarta Selatan"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
+                    className="w-full pl-9 pr-3 py-2 text-xs text-[#1A2B56] border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
                   />
                 </div>
               </div>
@@ -321,7 +321,7 @@ export function CheckoutShippingDialog({
                       const val = e.target.value.replace(/\D/g, '').slice(0, 5)
                       setPostalCode(val)
                     }}
-                    className="w-full px-3 py-2 text-xs font-mono font-bold tracking-wider border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
+                    className="w-full px-3 py-2 text-xs font-mono font-bold tracking-wider text-[#1A2B56] border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A2B56]/20 focus:border-[#1A2B56]"
                   />
                   {isLoadingRates && (
                     <Loader2 className="w-4 h-4 absolute right-3 top-2.5 animate-spin text-[#1A2B56]" />
