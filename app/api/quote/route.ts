@@ -6,6 +6,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const productId = searchParams.get('productId')
     const category = searchParams.get('category')
+    const tenantSlug = searchParams.get('tenantSlug')
 
     if (!productId || !category) {
       return NextResponse.json(
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
       )
     }
 
-    const quote = buildPriceQuote(productId, category)
+    const quote = buildPriceQuote(productId, category, 1)
     return NextResponse.json(quote)
   } catch {
     return NextResponse.json({ error: 'Gagal mengambil harga' }, { status: 500 })

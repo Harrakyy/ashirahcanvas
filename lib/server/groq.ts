@@ -33,7 +33,7 @@ async function callGroq(
   modelName: string,
   systemPrompt: string,
   userMessage: string,
-  branch: TokenLog['branch']
+  branch: TokenLog['branch'] = 'unknown'
 ): Promise<string> {
   let lastError: unknown
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {

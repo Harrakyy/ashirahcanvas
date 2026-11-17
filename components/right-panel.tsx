@@ -29,6 +29,8 @@ interface RightPanelProps {
   isProcessingPayment?: boolean
   onSimulateCheckout?: () => void
   isSimulatingCheckout?: boolean
+  isQuoteLoading?: boolean
+  moq?: number
 }
 
 export default function RightPanel({
@@ -55,6 +57,8 @@ export default function RightPanel({
   isProcessingPayment = false,
   onSimulateCheckout,
   isSimulatingCheckout = false,
+  isQuoteLoading = false,
+  moq = 12,
 }: RightPanelProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -75,7 +79,7 @@ export default function RightPanel({
   }
 
   return (
-    <div className="w-96 border-l border-gray-200 bg-white flex flex-col mt-16 overflow-hidden">
+    <div className="w-96 border-l border-black/[0.06] bg-white/80 backdrop-blur-xl flex flex-col mt-16 overflow-hidden">
       {mode === 'review' ? (
         <ReviewMode
           basePrice={basePrice}
@@ -90,6 +94,8 @@ export default function RightPanel({
           onCustomNow={() => onModeChange('negotiate')}
           onSimulateCheckout={onSimulateCheckout}
           isSimulatingCheckout={isSimulatingCheckout}
+          isQuoteLoading={isQuoteLoading}
+          moq={moq}
         />
       ) : (
         <NegotiateMode
@@ -108,6 +114,7 @@ export default function RightPanel({
           agreedDiscount={agreedDiscount}
           onPayment={onPayment}
           isProcessingPayment={isProcessingPayment}
+          moq={moq}
         />
       )}
     </div>

@@ -75,7 +75,7 @@ export function detectCustomerStyle(session: NegotiationSession): CustomerStyle 
   }
 }
 
-function buildStyleInstruction(style: CustomerStyle): string {
+export function buildStyleInstruction(style: CustomerStyle): string {
   const length = style.isShort ? '1-2 kalimat.' : 'Boleh detail, to the point.'
   const tone = style.isFormal
     ? 'Formal, sopan, no emoji.'
@@ -185,6 +185,17 @@ export function classifyUserIntent(message: string): 'ACCEPT' | 'REJECT' | 'UNKN
     /\bada\s*kemungkinan\b/i,
     /\bapakah\s*(bisa|dapat|ada)\b.*\b(kurang|diskon|potongan|rendah|murah)\b/i,
   ]
+
+  const questionPatterns = [
+    /bagaimana\s+(cara|caranya|bisa|ya)/i,
+    /gimana\s+(cara|caranya|bisa|ya)/i,
+    /cara\s+(nambah|tambah|ubah|ganti|order)/i,
+    /\bcaranya\s+(gimana|bagaimana)\b/i,
+    /\bbantu\s+(saya|aku|kami)\b/i,
+  ]
+  for (const pattern of questionPatterns) {
+    if (pattern.test(lower)) return 'UNKNOWN'
+  }
 
   for (const pattern of acceptPatterns) {
     if (pattern.test(lower)) return 'ACCEPT'

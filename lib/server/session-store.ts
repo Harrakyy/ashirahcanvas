@@ -69,3 +69,7 @@ export async function updateSession(
     ex: SESSION_TTL,
   })
 }
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await redis.del(sessionKey(sessionId))
+}

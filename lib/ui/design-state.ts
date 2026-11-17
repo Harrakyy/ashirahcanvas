@@ -27,6 +27,10 @@ export function setActiveColor(color: string): void {
   activeColor = color
 }
 
+export function getActiveColor(): string {
+  return activeColor
+}
+
 export function getViewState(zone: string): string | null {
   return viewStates[zone] ?? null
 }
